@@ -1,6 +1,6 @@
 # RAG Pipeline
 
-[![CI](https://img.shields.io/github/actions/workflow/status/SINdomX/rag-pipeline/ci.yml?branch=main&label=CI)](https://github.com/SINdomX/rag-pipeline/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/pxnz3r/rag-pipeline/ci.yml?branch=main&label=CI)](https://github.com/pxnz3r/rag-pipeline/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
