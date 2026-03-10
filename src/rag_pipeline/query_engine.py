@@ -65,9 +65,11 @@ async def generate_trading_answer_robust(
             )
 
         hybrid_scores = reciprocal_rank_fusion(dense_ids, bm25_top_ids, k=rrf_k)
-        top_ids = sorted(hybrid_scores, key=hybrid_scores.get, reverse=True)[
-            :rerank_candidates
-        ]
+        top_ids = sorted(
+            hybrid_scores,
+            key=lambda doc_id: hybrid_scores.get(doc_id, 0.0),
+            reverse=True,
+        )[:rerank_candidates]
 
         top_docs = []
         if top_ids:
