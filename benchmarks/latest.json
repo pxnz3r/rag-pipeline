@@ -1,0 +1,10 @@
+{
+  "samples": 20000,
+  "top_k_ms": 0.544,
+  "group_ids_ms": 96.321,
+  "purge_orphans_ms": 72.668,
+  "grouped_pdf_count": 100,
+  "orphans_deleted": 3320,
+  "memory_current_bytes": 845448,
+  "memory_peak_bytes": 1073502
+}
