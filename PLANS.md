@@ -17,6 +17,8 @@ Harden the notebook-based RAG pipeline with reusable modules, tests, benchmarks,
 - [x] 2026-03-10 18:55 PKT - Added env-gated smoke path + smoke script + smoke tests
 - [x] 2026-03-10 18:58 PKT - Added notebook-wrapper integration tests with mocked delegation
 - [x] 2026-03-10 19:00 PKT - Added CLI entrypoint (`rag-pipeline`) + README runbook updates
+- [x] 2026-03-10 19:20 PKT - Added community/health docs, GitHub templates, license, and metadata
+- [x] 2026-03-10 19:23 PKT - Created public GitHub repo and pushed `main`
 
 ## Surprises & Discoveries
 - Notebook lacked cell IDs, which can become a hard error in future `nbformat` versions.
@@ -41,3 +43,4 @@ Harden the notebook-based RAG pipeline with reusable modules, tests, benchmarks,
 - `pytest` (smoke/CLI/wrapper integration) -> 19 passed
 - `python scripts/smoke_e2e.py` -> offline smoke passed
 - `python -m rag_pipeline.cli smoke` -> offline smoke passed
+- Public repository: `https://github.com/pxnz3r/rag-pipeline`
