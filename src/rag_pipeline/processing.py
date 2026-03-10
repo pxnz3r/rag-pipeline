@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
 import pypdf
+from pypdf.errors import PdfReadError
 
 from .models import Chunk
 from .storage import get_file_hash, save_json_atomic
@@ -54,7 +55,7 @@ def process_pdf_page_level(
                             )
                         return []
                 except (
-                    pypdf.errors.PdfReadError,
+                    PdfReadError,
                     TimeoutError,
                     ValueError,
                     OSError,
@@ -107,7 +108,7 @@ def process_pdf_page_level(
                 cnt_kept += 1
     except (
         OSError,
-        pypdf.errors.PdfReadError,
+        PdfReadError,
         UnicodeError,
         ValueError,
         TimeoutError,
