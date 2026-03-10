@@ -1,6 +1,7 @@
 # MEMORIES
 
 ## Current State
+- Public repository: `https://github.com/pxnz3r/rag-pipeline`
 - Notebook entrypoint: `Python3finale.ipynb`
 - Reusable package: `src/rag_pipeline`
 - Tests: `tests/`
@@ -8,6 +9,7 @@
 - Benchmark harness: `scripts/benchmark_pipeline.py`
 - Smoke harness: `scripts/smoke_e2e.py`, `src/rag_pipeline/smoke.py`
 - CLI entrypoint: `src/rag_pipeline/cli.py` (`rag-pipeline`)
+- Community health files and templates: issue templates, PR template, code owners, dependabot, release config
 - CI workflow: `.github/workflows/ci.yml`
 - Additional package modules: `models.py`, `storage.py`, `processing.py`, `enrichment.py`, `bm25_utils.py`, `chroma_pipeline.py`, `evaluation.py`, `text.py`
 - Query/eval orchestration module: `query_engine.py`
