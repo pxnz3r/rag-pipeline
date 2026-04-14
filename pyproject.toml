@@ -33,7 +33,7 @@ classifiers = [
 ]
 dependencies = [
   "numpy>=1.24",
-  "pypdf>=5.0.1",
+  "pypdf>=6.10.1",
   "rank-bm25>=0.2.2",
   "requests>=2.31",
 ]
