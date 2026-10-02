@@ -21,7 +21,8 @@ class JsonFormatter(logging.Formatter):
         if event:
             payload["event"] = event
         if isinstance(fields, dict):
-            payload.update(fields)
+            # Prevent caller fields from overwriting timestamp, severity, or message.
+            payload["fields"] = fields
         return json.dumps(payload, ensure_ascii=False)
 
 

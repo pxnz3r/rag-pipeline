@@ -1,10 +1,30 @@
 {
   "samples": 20000,
-  "top_k_ms": 0.544,
-  "group_ids_ms": 96.321,
-  "purge_orphans_ms": 72.668,
+  "repeats": 7,
+  "seed": 42,
+  "python": "3.12.14",
+  "numpy": "2.5.3",
+  "backend": "mutable in-memory pagination simulator (not Chroma/model throughput)",
+  "top_k": {
+    "median_ms": 0.281,
+    "p95_ms": 2.713
+  },
+  "full_sort_reference": {
+    "median_ms": 1.678,
+    "p95_ms": 2.476
+  },
+  "group_ids": {
+    "median_ms": 2.154,
+    "p95_ms": 3.813
+  },
+  "purge_orphans": {
+    "median_ms": 13.464,
+    "p95_ms": 14.336
+  },
   "grouped_pdf_count": 100,
   "orphans_deleted": 3320,
-  "memory_current_bytes": 845448,
-  "memory_peak_bytes": 1073502
+  "expected_orphans": 3320,
+  "cleanup_peak_python_bytes": 421990,
+  "memory_scope": "Python allocations during cleanup, including simulator copies; excludes input corpus and native allocations",
+  "correctness_verified": true
 }

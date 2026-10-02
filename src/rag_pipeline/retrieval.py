@@ -9,24 +9,35 @@ import numpy as np
 def top_k_indices_desc(values: np.ndarray, k: int) -> np.ndarray:
     if values is None:
         return np.array([], dtype=int)
-    n = int(values.shape[0]) if hasattr(values, "shape") else len(values)
+    values = np.asarray(values, dtype=float)
+    if values.ndim != 1:
+        raise ValueError("Scores must be one-dimensional")
+    # Exclude non-finite scores and use stable index ordering for cutoff ties.
+    valid = np.flatnonzero(np.isfinite(values))
+    n = len(valid)
     if n == 0 or k <= 0:
         return np.array([], dtype=int)
     k = min(k, n)
-    idx = np.argpartition(values, -k)[-k:]
-    return idx[np.argsort(values[idx])[::-1]]
+    cutoff = np.partition(values[valid], n - k)[n - k]
+    above = valid[values[valid] > cutoff]
+    tied = valid[values[valid] == cutoff][: k - len(above)]
+    idx = np.concatenate((above, tied))
+    return idx[np.lexsort((idx, -values[idx]))]
 
 
 def reciprocal_rank_fusion(
     dense_ids: Sequence[str], bm25_ids: Sequence[str], k: int = 60
 ) -> dict[str, float]:
+    if k < 0:
+        raise ValueError("RRF k must be nonnegative")
+
     def rrf(rank: int) -> float:
         return 1.0 / (k + rank + 1)
 
     scores: dict[str, float] = {}
-    for rank, doc_id in enumerate(dense_ids):
+    for rank, doc_id in enumerate(dict.fromkeys(dense_ids)):
         scores[doc_id] = scores.get(doc_id, 0.0) + rrf(rank)
-    for rank, doc_id in enumerate(bm25_ids):
+    for rank, doc_id in enumerate(dict.fromkeys(bm25_ids)):
         scores[doc_id] = scores.get(doc_id, 0.0) + rrf(rank)
     return scores
 

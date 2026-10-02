@@ -31,7 +31,7 @@ class _FakeClient:
     class Chat:
         class Completions:
             @staticmethod
-            def create(messages, model):
+            def create(messages, model, **kwargs):
                 class _Msg:
                     content = "Synthetic answer"
 
@@ -90,7 +90,9 @@ async def _run_live_smoke() -> SmokeResult:
     try:
         import requests
 
-        resp = requests.get(f"{ollama_base}/api/tags", timeout=5)
+        resp = await asyncio.to_thread(
+            requests.get, f"{ollama_base}/api/tags", timeout=5
+        )
         if resp.status_code != 200:
             return SmokeResult(
                 mode="live",
@@ -101,7 +103,7 @@ async def _run_live_smoke() -> SmokeResult:
         return SmokeResult(
             mode="live",
             ok=False,
-            message=f"Live smoke could not reach Ollama at {ollama_base}: {exc}",
+            message=f"Live smoke could not reach Ollama ({type(exc).__name__}).",
         )
 
     # Live integration is env-gated and intentionally short to avoid accidental cost.
