@@ -1,15 +1,27 @@
-# CLI Reference
+# CLI
 
-Installed-package commands:
+Global `--index PATH` defaults to `processed_data/index.sqlite`. `--dense` loads the pinned MiniLM embedder; `--rerank` loads the optional cross-encoder. Place global flags before the command. All runtime commands work from an installed wheel without a source checkout.
 
-- `rag-pipeline ingest [--base-dir PATH]`: synchronize local PDFs into an atomic master checkpoint. Offline; no credentials or model downloads. Reports chunk/document counts and exits nonzero on parse, configuration, or persistence failure.
-- `rag-pipeline smoke [--live]`: offline retrieval smoke by default; `--live` checks credential presence and Ollama reachability without paid calls.
+| Command | Behavior |
+| --- | --- |
+| `ingest DIRECTORY [--size 900 --overlap 100]` | Transactionally synchronize the complete directory; missing input fails |
+| `search QUESTION [--filter KEY=VALUE] [-k 5] [--mode hybrid] [--match any]` | JSON sources with document/locator/offset/text/metadata/score |
+| `ask QUESTION [search flags] [--generate]` | Default exact evidence; opt-in Groq quote-checked claims |
+| `calculate QUESTION --operation OP --operands FILE [search flags]` | Source-bound Decimal sum/difference/ratio/growth_percent |
+| `status` | Counts, committed generation and embedding signature |
+| `evaluate DATASET [--mode lexical] [-k 5] [--repeats 3] [--split NAME] [--output FILE]` | Judged retrieval, optional character spans, negative cases, index/query timing |
 
-Developer commands require a source checkout and development dependencies:
+Repeat `--filter` for company/year/jurisdiction/contract/account scope. Keys must be unique; filters are ANDed. `--match all` requires every non-stopword lexical term (useful for exact account lookups); `any` preserves broad natural-language recall. Dense search requires indexed vectors and the matching embedder. Lexical search can read an existing dense index offline. Reranking scores are uncalibrated logits; RRF scores also are not confidence probabilities.
 
-- `rag-pipeline test`: run pytest in the current directory. Run from the repository root.
-- `rag-pipeline validate-notebook [PATH]`: check notebook schema and Python syntax, with magics sanitized. Defaults to `Python3finale.ipynb`.
-- `rag-pipeline audit-notebook [PATH]`: check notebook architecture patterns. This is a structural check, not a complete security audit.
-- `rag-pipeline benchmark [--samples N] [--repeats N] [--output PATH]`: repeated helper benchmarks with median/p95 latency and correctness checks. Default samples: 20000, repeats: 5, output: `benchmarks/latest.json`.
+Calculation operand file:
 
-For source-directory discovery, script-based developer commands first use the installed editable checkout and otherwise use the current repository root. A wheel installed without a checkout cannot run repository-only scripts.
+```json
+[
+  {"source_id":"ledger.csv#row 2:0-74","quote":"Revenue USD millions: 2024=125.0; 2023=100.0.","value":"125.0","unit":"USD millions"},
+  {"source_id":"ledger.csv#row 2:0-74","quote":"Revenue USD millions: 2024=125.0; 2023=100.0.","value":"100.0","unit":"USD millions"}
+]
+```
+
+Use the actual IDs/quotes returned by your search. Growth is `(new−old)/old×100` with a positive base. Mixed units and zero denominators are rejected; no conversion or accounting-semantic inference is performed. Parenthesized amounts are negative. Precision expands for large explicit operands; repeating divisions use the reported precision.
+
+Dataset format: `documents:[{id,text,metadata}]`, `queries:[{id,question,filters,relevant:[document_id],split,spans:[{document,start,end}]}]`. Spans are optional Unicode offsets in the document text. Empty `relevant` marks a negative query. Missing labels/unknown IDs and invalid spans fail; corpus filenames are generated internally rather than accepting dataset paths. Document metrics deduplicate retrieved chunks; character metrics union overlapping returned evidence. These do not measure generated factuality.

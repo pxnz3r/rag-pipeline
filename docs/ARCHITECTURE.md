@@ -1,48 +1,25 @@
-# Architecture
+# Architecture (0.3)
 
-The notebook is an optional interactive adapter. Durable state transitions, PDF extraction, graph synchronization, retrieval, and evaluation live in `src/rag_pipeline`. The core package needs no model downloads, service credentials, or GPU.
-
-```mermaid
-flowchart LR
-    PDFs[Local PDFs] --> Ingest[Locked PDF ingestion]
-    Ingest --> Master[Atomic master checkpoint]
-    Master --> Cache[Optional enrichment cache]
-    Cache --> BM25[Lexical index]
-    Cache --> Chroma[Persistent dense index]
-    Master --> Graph[Isolated graph generation]
-    Chroma --> Query[Concurrent retrieval and fusion]
-    BM25 --> Query
-    Graph --> Query
-    Query --> Rerank[Optional reranker]
-    Rerank --> Answer[Bounded evidence and generation]
-    Answer --> Result[Answer, citations, contexts, error state]
+```
+Local source snapshot → bounded extraction → offsets/chunks → SQLite transaction
+                                             ↓                 ↓
+                                     optional ONNX vectors   FTS5 + indexed metadata
+                                                               ↓
+                                      filtered lexical/dense retrieval → RRF
+                                                               ↓
+                                        optional cross-encoder → original context
+                                                               ↓
+                                exact evidence / quote-checked generation / Decimal
 ```
 
-## State and failure boundaries
+`Index` owns documents, sections, chunks, vectors, metadata lookups and extraction/model signatures. Foreign keys cascade removals, FTS triggers stay in the same transaction, and WAL readers see a committed snapshot while ingestion runs. Invalid parsing, embeddings or writes roll back every changed document. Directory-scan permission errors stop ingestion rather than silently deleting apparently missing sources. Embedding batches span rows/pages within each changed document. Incremental ingest hashes source/sidecar snapshots; unchanged sources skip parsing and encoding. The index records a generation only when content changes.
 
-- `ingestion.py` locks the master checkpoint while reading and replacing it. `processing.py` stages corpus changes in memory and persists them before publishing to the caller. A parse failure preserves the previous corpus; a successfully empty PDF removes its previous chunks. `None` means an unchanged PDF, while `[]` means successfully processed with no retained text.
-- Pages are split into bounded, overlapping text chunks with deterministic page/local IDs. Changing extraction settings changes the stored pipeline signature, forcing reprocessing. Configured PDF byte/page limits constrain inputs, but parsing is not a sandbox.
-- `storage.py` writes unique same-directory temporary files, fsyncs file contents, atomically replaces the destination, and fsyncs the directory on POSIX. Failures propagate. Missing checkpoints start empty; corrupt, oversized, or malformed checkpoints fail visibly.
-- `manifest.py` validates store names and schemas and uses portable cross-process file locks. Manifest read/modify/write is serialized. A corrupt manifest is never silently replaced.
-- `enrichment.py` reuses only cache entries matching the current hash, extraction signature, and source text. API failures remain uncached and retryable. Raw chunks remain immutable during enrichment. Notebook enrichment writes are locked; cache selection can run offline.
-- `chroma_pipeline.py` fingerprints each document's hash, extraction version, enriched text, metadata, and embedding signature. It upserts replacements before pruning stale IDs, then checkpoints the document. Deleted PDFs are handled even if no ingestion is needed. Legacy hash-only manifests trigger one migration reindex.
-- Chroma synchronization is idempotent but **not an atomic multi-record transaction**. A backend failure can leave partial replacement records; the unchanged manifest ensures retry. Run one writer per store and pause queries during ingestion if readers require a consistent corpus. Notebook ingestion takes a store lock; custom callers must do the same.
-- Cleanup scans finish before deletion. IDs are spooled to a temporary file, preventing offset-pagination skips with bounded scan buffers. Disk use scales with stale IDs. Concurrent external writes during a scan are unsupported.
-- `lightrag_pipeline.py` rebuilds into a new generation when corpus content/configuration changes. It validates document completion and flushes stores before atomically publishing `current.json`. Changed and removed PDFs therefore cannot retain relationships in the active graph. A failed build preserves the active pointer. Each generation needs a distinct adapter workspace; the notebook uses its generation name.
-- Older graph generations are retained for recovery. This intentionally trades extra storage and rebuild cost for consistency with graph APIs that cannot safely reverse extracted relationships. Stop/finalize old readers before manually deleting old generations.
+`sources` keeps PDF pages, CSV rows and JSON records distinct. CSV headers repeat for every row. JSON number lexemes are preserved as strings in the rendered evidence. Offsets refer to the stored extracted/rendered section, not raw PDF bytes or raw CSV/JSON syntax. Plain text offsets match the original Unicode text. Overlapping chunks prefer line/sentence boundaries, retain exact text and expand locally for clause/table context. Identical basenames in different directories remain separate documents. Queries fetch bounded original text windows through SQLite instead of copying complete sections per candidate. Existing incomplete schemas are never silently rebuilt. NUL-containing extracted text is rejected to preserve window semantics. No synthetic LLM enrichment rewrites evidence.
 
-## Query boundary
+Metadata values are explicit strings/integers. An indexed key/value table scopes both retrieval channels before ranking; filters are parameterized. Scoping is not authorization: this is a private single-user library, not a tenant-isolated service. Source order/FTS rowids resolve lexical cutoff ties; final fused/reranked ties use chunk IDs. Replacing tied chunks can change cutoff membership.
 
-`query_answer()` returns a structured `QueryResult` with aligned source IDs, PDF names, pages, bounded evidence, and an explicit failure state. `generate_trading_answer_robust()` preserves the previous `(answer, contexts)` interface.
+FTS5 performs lexical retrieval on disk. Dense retrieval normalizes vectors and scans them in 512-row batches, keeping a bounded top-k heap. It is exact O(N×dimension), not ANN or a claim of constant latency at millions of chunks. Optional models use pinned ONNX/tokenizer assets with bounded CPU threads. Dense retrieval is general English, with truncation at 256 tokens; reranking is MS MARCO trained, truncates pairs at 512 tokens, and returns logits, not confidence. Benchmark domain performance before enabling it.
 
-Graph, dense, and BM25 retrieval run concurrently and fail independently. Synchronous storage/model/client operations run in worker threads; native async adapters are awaited. Fusion deduplicates IDs, ranking handles ties deterministically, and non-finite scores are rejected. A reranker failure falls back to fused order. Generation is skipped when there is no evidence. Reranking and generation have bounded inputs.
+`answer` returns evidence by default and abstains when retrieval returns none. Optional generation receives a separate system instruction and bounded JSON evidence, must return only cited claims, and is rejected on invented source IDs, quotes, or numerical values/currencies/common scales. Numeric formatting may differ while Decimal values must agree; dollar symbols are not assumed to be USD. These checks are conservative and not exhaustive unit/semantic validation. It never displays uncited trailing prose. This proves cited text exists; it cannot prove a paraphrase follows logically, select the correct accounting period, or fully prevent prompt injection. `calculate` requires explicit source IDs, exact quotes, values and matching units; it uses reproducible Decimal operations rather than executing generated code. Operand meaning and scale remain caller responsibilities.
 
-Query timeouts bound caller waits. Cancellation cannot kill an already running synchronous worker; configure network timeouts in injected clients as the notebook does with `GROQ_TIMEOUT`. Injected adapters must be safe for worker-thread use. Use LightRAG's `aquery`, rather than its event-loop-owning synchronous wrapper.
-
-Retrieved text is JSON-encoded as untrusted evidence under a separate system instruction. This reduces instruction confusion, but does not eliminate LLM prompt injection or prove answer factuality. The pipeline has no tool execution or trading execution capability.
-
-## Deployment scope
-
-This is a local/library/notebook pipeline, not a multi-tenant authenticated service. It does not provide user authorization, tenant isolation, request queues, or an API server. Keep state directories private and do not expose Chroma/Ollama directly to untrusted networks. If adding a service, design those boundaries before accepting arbitrary documents or URLs.
-
-For large/untrusted documents, put parsing/model work in workers with process-level CPU/memory/time limits. The current master checkpoint and lexical index still scale with corpus size in memory; JSON size guards fail rather than pretend data is absent. A transactional database/checkpoint store and sharded lexical index are the next step for corpora exceeding that budget, not an untested distributed rewrite.
+The 0.2 JSON/Chroma/LightRAG manifests, cleanup, graph rebuilds, LangChain/Ragas layers and their tests were removed together. Their split-state synchronization and vulnerable dependency paths are no longer part of the declared runtime. Historical audit evidence is retained; no old user store is automatically deleted. No web fetching, OCR, background branch creation or hidden model/service calls occur during ordinary core ingestion/search.

@@ -1,16 +1,10 @@
-## Summary
+## Change
 
-Describe what changed and why.
+Describe the concrete problem and resulting behavior. Include migration notes for API/state changes.
 
 ## Validation
 
-- [ ] `rag-pipeline test`
-- [ ] `rag-pipeline validate-notebook Python3finale.ipynb`
-- [ ] `rag-pipeline audit-notebook Python3finale.ipynb`
-- [ ] `rag-pipeline smoke`
-
-## Checklist
-
-- [ ] Documentation updated if needed
-- [ ] No secrets added
-- [ ] Backward compatibility considered
+- [ ] `ruff check src scripts tests` and `ruff format --check src scripts tests`
+- [ ] `pytest` (includes notebook and installed-command checks)
+- [ ] `pip-audit --local` in the relevant resolved environment
+- [ ] Relevance/latency comparisons if retrieval behavior changes

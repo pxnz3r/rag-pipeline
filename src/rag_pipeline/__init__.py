@@ -1,29 +1,28 @@
-from .cleanup import compute_stale_ids, purge_stale_data_streaming
-from .config import Settings, load_settings
-from .ingestion import ingest_pdfs
-from .manifest import (
-    load_manifest,
-    remove_manifest_entries,
-    update_manifest,
-    update_manifest_bulk,
-)
-from .query_engine import QueryResult, Source, query_answer
-from .retrieval import top_k_indices_desc
-from .retrieval_metrics import evaluate_rankings
+"""Evidence-first local retrieval. Public APIs are loaded lazily for PDF workers."""
 
+__version__ = "0.3.0"
 __all__ = [
-    "Settings",
-    "QueryResult",
-    "Source",
-    "query_answer",
-    "ingest_pdfs",
+    "Index",
+    "Hit",
+    "Answer",
+    "Operand",
+    "answer",
+    "calculate",
     "evaluate_rankings",
-    "compute_stale_ids",
-    "load_manifest",
-    "load_settings",
-    "purge_stale_data_streaming",
-    "remove_manifest_entries",
-    "top_k_indices_desc",
-    "update_manifest",
-    "update_manifest_bulk",
 ]
+
+
+def __getattr__(name):
+    if name in {"Index", "Hit"}:
+        from . import index
+
+        return getattr(index, name)
+    if name in {"Answer", "Operand", "answer", "calculate"}:
+        from . import answers
+
+        return getattr(answers, name)
+    if name == "evaluate_rankings":
+        from .retrieval_metrics import evaluate_rankings
+
+        return evaluate_rankings
+    raise AttributeError(name)
