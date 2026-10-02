@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, metadata TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS document_metadata(document TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(document,key));
 CREATE INDEX IF NOT EXISTS metadata_lookup ON document_metadata(key,value,document);
-CREATE TABLE IF NOT EXISTS sections(id INTEGER PRIMARY KEY, document TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, locator TEXT NOT NULL, text TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sections(id INTEGER PRIMARY KEY, document TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, locator TEXT NOT NULL, text TEXT NOT NULL, chars INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS chunks(id TEXT UNIQUE NOT NULL, section INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE, start INTEGER NOT NULL, end INTEGER NOT NULL, search_text TEXT NOT NULL, vector BLOB);
 CREATE INDEX IF NOT EXISTS section_document ON sections(document);
 CREATE INDEX IF NOT EXISTS chunk_section ON chunks(section);
@@ -51,6 +51,7 @@ class Hit:
 class Index:
     def __init__(self, path: str | Path, embedder=None, reranker=None):
         self.path = Path(path)
+        existed = self.path.exists()
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         self.db.row_factory = sqlite3.Row
@@ -60,14 +61,38 @@ class Index:
             self.db.close()
             raise ValueError("Embedder requires a stable model/revision signature")
         try:
+            if existed and self._state("schema") != "2":
+                raise ValueError(
+                    "Missing or unsupported index schema; create a new index"
+                )
             self.db.execute("PRAGMA foreign_keys=ON")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
-            self.db.executescript(SCHEMA)
+            if existed:
+                tables = {
+                    r[0]
+                    for r in self.db.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if (
+                    not {
+                        "state",
+                        "documents",
+                        "document_metadata",
+                        "sections",
+                        "chunks",
+                        "fts",
+                    }
+                    <= tables
+                ):
+                    raise ValueError("Incomplete index schema; restore a valid backup")
+            else:
+                self.db.executescript(SCHEMA)
             version = self._state("schema")
-            if version not in (None, "1"):
+            if version not in (None, "2"):
                 raise ValueError("Unsupported index schema; create a new index")
-            self.db.execute("INSERT OR IGNORE INTO state VALUES('schema','1')")
+            self.db.execute("INSERT OR IGNORE INTO state VALUES('schema','2')")
         except Exception:
             self.db.close()
             raise
@@ -171,8 +196,8 @@ class Index:
         title = " ".join(str(v) for v in doc.metadata.values())
         for locator, text in doc.sections:
             section = self.db.execute(
-                "INSERT INTO sections(document,locator,text) VALUES(?,?,?)",
-                (doc.id, locator, text),
+                "INSERT INTO sections(document,locator,text,chars) VALUES(?,?,?,?)",
+                (doc.id, locator, text, len(text)),
             ).lastrowid
             offsets = list(spans(text, size, overlap))
             for offset in range(0, len(offsets), 32):
@@ -193,6 +218,12 @@ class Index:
                         for (a, b), t, v in zip(batch, texts, vectors)
                     ],
                 )
+
+    def _text(self, section, start, end):
+        return self.db.execute(
+            "SELECT substr(text,?,?) FROM sections WHERE id=?",
+            (start + 1, end - start, section),
+        ).fetchone()[0]
 
     def _vectors(self, texts, write=True):
         import numpy as np
@@ -222,7 +253,7 @@ class Index:
     @staticmethod
     def _filters(filters):
         parts, args = [], []
-        for key, value in metadata(filters or {}).items():
+        for key, value in metadata({} if filters is None else filters).items():
             parts.append(
                 "d.id IN (SELECT document FROM document_metadata WHERE key=? AND value=?)"
             )
@@ -316,7 +347,7 @@ class Index:
             order = sorted(scores, key=lambda c: (-scores[c], c))[:candidates]
             rows = {
                 cid: self.db.execute(
-                    "SELECT c.*,s.document,s.locator,s.text,d.metadata FROM chunks c "
+                    "SELECT c.id,c.section,c.start,c.end,s.document,s.locator,s.chars,d.metadata FROM chunks c "
                     "JOIN sections s ON s.id=c.section JOIN documents d ON d.id=s.document WHERE c.id=?",
                     (cid,),
                 ).fetchone()
@@ -329,7 +360,11 @@ class Index:
                     self.reranker.score(
                         question,
                         [
-                            rows[cid]["text"][rows[cid]["start"] : rows[cid]["end"]]
+                            self._text(
+                                rows[cid]["section"],
+                                rows[cid]["start"],
+                                rows[cid]["end"],
+                            )
                             for cid in order
                         ],
                     )
@@ -354,7 +389,7 @@ class Index:
                 extra = max(0, context_chars - (chunk_end - row["start"])) // 2
                 start, end = (
                     max(0, row["start"] - extra),
-                    min(len(row["text"]), chunk_end + extra),
+                    min(row["chars"], chunk_end + extra),
                 )
                 hits.append(
                     Hit(
@@ -363,7 +398,7 @@ class Index:
                         row["locator"],
                         start,
                         end,
-                        row["text"][start:end],
+                        self._text(row["section"], start, end),
                         json.loads(row["metadata"]),
                         scores[cid],
                     )

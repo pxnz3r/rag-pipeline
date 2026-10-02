@@ -28,6 +28,7 @@ def metadata(values: dict) -> dict:
             or isinstance(value, bool)
             or not isinstance(value, (str, int))
             or len(str(value)) > 512
+            or "\x00" in str(value)
         ):
             raise ValueError("Metadata requires short named string/integer fields")
     return values.copy()
@@ -107,6 +108,10 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
             ]
         else:
             sections = [("text", text)]
+    if any("\x00" in text for _, text in sections):
+        raise ValueError(
+            "Extracted text contains NUL characters; convert the source first"
+        )
     if not sections or not any(text.strip() for _, text in sections):
         raise ValueError(f"No extractable text in {path.name}; scanned PDFs need OCR")
     return Document(doc_id, fingerprint, meta, sections)

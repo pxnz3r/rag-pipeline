@@ -200,3 +200,46 @@ def test_empty_dense_index_and_context_smaller_than_chunk(tmp_path):
         index.ingest(root)
         hit = index.search("Revenue", context_chars=100)[0]
         assert len(hit.text) <= 100 and hit.end - hit.start == len(hit.text)
+
+
+def test_long_book_search_does_not_copy_whole_section_per_candidate(tmp_path):
+    import tracemalloc
+
+    root = tmp_path / "corpus"
+    text = "📚 Évidence: Revenue and contractual obligations.\n" * 50000
+    source(root, "long-book.txt", text)
+    with Index(tmp_path / "index.sqlite") as index:
+        index.ingest(root)
+        tracemalloc.start()
+        try:
+            hits = index.search("Revenue")
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        # Python heap only: the old per-candidate copies used ~40 section sizes.
+        assert hits and peak < len(text) * 3
+        assert all(h.text == text[h.start : h.end] for h in hits)
+
+
+def test_missing_schema_is_not_silently_reinitialized(tmp_path, corpus):
+    path = tmp_path / "index.sqlite"
+    with Index(path) as index:
+        index.ingest(corpus)
+        index.db.execute("DELETE FROM state WHERE key='schema'")
+    with pytest.raises(ValueError, match="schema"):
+        Index(path)
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 2
+        assert not connection.execute(
+            "SELECT value FROM state WHERE key='schema'"
+        ).fetchone()
+
+    with sqlite3.connect(path) as connection:
+        connection.execute("INSERT INTO state VALUES('schema','2')")
+        connection.execute("DROP TABLE fts")
+    with pytest.raises(ValueError, match="Incomplete"):
+        Index(path)
+    with sqlite3.connect(path) as connection:
+        assert not connection.execute(
+            "SELECT name FROM sqlite_master WHERE name='fts'"
+        ).fetchone()

@@ -86,3 +86,10 @@ def test_worker_timeout_and_bounded_overlap(monkeypatch):
     assert all(
         next_a <= b and next_a > a for (a, b), (next_a, _) in zip(offsets, offsets[1:])
     )
+
+
+def test_nul_text_fails_before_sqlite_window_truncation(tmp_path):
+    path = tmp_path / "nul.txt"
+    path.write_text("Revenue\x00USD 125 million")
+    with pytest.raises(ValueError, match="NUL"):
+        document(path, tmp_path)

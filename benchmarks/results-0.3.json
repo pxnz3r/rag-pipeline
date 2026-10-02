@@ -28,14 +28,14 @@
       "total": 3946
     },
     "0.3": {
-      "src/rag_pipeline": 1314,
-      "tests": 596,
+      "src/rag_pipeline": 1354,
+      "tests": 646,
       "scripts": 238,
       "notebook_code": 13,
-      "total": 2161
+      "total": 2251
     }
   },
-  "method": "Non-reranked final comparisons run sequentially; reranked final uses batch8 and one repetition/query after one global warmup. Earlier baseline BM25 is only that route, never a comparison against the complete v0.2 model/graph/generation system. Model load excluded, index encoding included. Peak RSS profiler compares the same 40 legal windows; logits identical. Profiler latency was not measured under identical worker contention: interpret memory, not relative speed. No private corpus or generated-answer accuracy tested. Aggregate metrics/samples retained in Git; CLI evaluation outputs complete per-query rankings for inspection and reproduction.",
+  "method": "Non-reranked final comparisons run sequentially; reranked final uses batch8 and one repetition/query after one global warmup. Earlier baseline BM25 is only that route, never a comparison against the complete v0.2 model/graph/generation system. Model load excluded, index encoding included. Peak RSS profiler compares the same 40 legal windows; logits identical. Profiler latency was not measured under identical worker contention: interpret memory, not relative speed. No private corpus or generated-answer accuracy tested. Aggregate metrics/samples retained in Git; CLI evaluation outputs complete per-query rankings for inspection and reproduction. Non-reranked timings refreshed after SQL window extraction; reranked numbers remain the batch-8 pilot with identical passage inputs, recorded before this memory-only change.",
   "results": {
     "finqa-baseline": {
       "baseline": "v0.2 BM25 retrieval route only; not its dense/reranked/generative pipeline",
@@ -103,12 +103,12 @@
       "span_retrieval": null,
       "negative_queries": 0,
       "negative_abstention_rate": null,
-      "index_seconds": 0.5732370040004753,
+      "index_seconds": 0.49499025699969934,
       "query_samples": 294,
       "latency_ms": {
-        "median": 1.2124340000809752,
-        "p95": 2.105345000245506,
-        "max": 5.794321999928798
+        "median": 1.04843500048446,
+        "p95": 1.7825130995333882,
+        "max": 2.1890750003876747
       }
     },
     "finqa-hybrid-final": {
@@ -137,12 +137,12 @@
       "span_retrieval": null,
       "negative_queries": 0,
       "negative_abstention_rate": null,
-      "index_seconds": 25.46702372100026,
+      "index_seconds": 22.804542443999708,
       "query_samples": 294,
       "latency_ms": {
-        "median": 12.684204500146734,
-        "p95": 19.029845299701257,
-        "max": 28.614321000532073
+        "median": 13.098213999910513,
+        "p95": 18.833015849895673,
+        "max": 30.47322600014013
       }
     },
     "finqa-reranked-final": {
@@ -202,16 +202,16 @@
       "span_retrieval": {
         "queries": 134,
         "character_recall": 0.5441983860523686,
-        "character_precision": 0.041189273991807135
+        "character_precision": 0.04118927399180713
       },
       "negative_queries": 0,
       "negative_abstention_rate": null,
-      "index_seconds": 0.05043275900061417,
+      "index_seconds": 0.04683124800067162,
       "query_samples": 402,
       "latency_ms": {
-        "median": 2.9661730000043462,
-        "p95": 7.1674928503398405,
-        "max": 19.554966999749013
+        "median": 2.283838499806734,
+        "p95": 3.7157660004140776,
+        "max": 5.021803999625263
       }
     },
     "cuad-hybrid-final": {
@@ -241,12 +241,12 @@
       },
       "negative_queries": 0,
       "negative_abstention_rate": null,
-      "index_seconds": 32.01832184700015,
+      "index_seconds": 30.64252909299921,
       "query_samples": 402,
       "latency_ms": {
-        "median": 12.617543000033038,
-        "p95": 20.08346659995368,
-        "max": 33.5821210001086
+        "median": 13.426820999939082,
+        "p95": 20.82889270004671,
+        "max": 28.631813999709266
       }
     },
     "cuad-reranked-final": {
@@ -307,49 +307,49 @@
       "span_retrieval": null,
       "negative_queries": 3,
       "negative_abstention_rate": 1.0,
-      "index_seconds": 0.004031899999972666,
+      "index_seconds": 0.0032114270006786683,
       "query_samples": 105,
       "latency_ms": {
-        "median": 0.13416700039670104,
-        "p95": 0.19974479982920457,
-        "max": 22.568790999685007
+        "median": 0.12393199995130999,
+        "p95": 0.19232039940106913,
+        "max": 0.39077400015230523
       }
     },
     "scale-final": {
       "rows": 100000,
-      "ingest_seconds": 2.6217433149995486,
-      "unchanged_ingest_seconds": 0.006283957999585255,
-      "index_bytes": 36638720,
+      "ingest_seconds": 2.6952097599996705,
+      "unchanged_ingest_seconds": 0.009069450999959372,
+      "index_bytes": 36945920,
       "queries": [
         {
           "match": "any",
           "returned": 5,
           "samples_ms": [
-            63.7228209998284,
-            64.5922170006088,
-            65.45582600028865,
-            64.14635300006921,
-            65.70907700006501,
-            66.20019900037732,
-            63.19372400048451
+            63.58432800061564,
+            63.411753999389475,
+            65.26847099939914,
+            64.24918300035642,
+            63.74112699995749,
+            64.81447399983153,
+            62.62523799978226
           ],
-          "median_ms": 64.5922170006088,
-          "p95_ms": 66.05286240028363
+          "median_ms": 63.74112699995749,
+          "p95_ms": 65.13227189952886
         },
         {
           "match": "all",
           "returned": 1,
           "samples_ms": [
-            2.724068999668816,
-            2.688778999981878,
-            2.710009000111313,
-            2.6843919995371834,
-            2.6904110000032233,
-            2.6971810002578422,
-            2.664663000359724
+            2.7481359993544174,
+            2.790407999782474,
+            2.677691999451781,
+            2.685814999495051,
+            2.909513000304287,
+            2.898986999753106,
+            2.786412999739696
           ],
-          "median_ms": 2.6904110000032233,
-          "p95_ms": 2.719850999801565
+          "median_ms": 2.786412999739696,
+          "p95_ms": 2.9063552001389326
         }
       ],
       "limitations": "Synthetic exact-account query; any matches every row and all matches only the target. Different result semantics, not an equivalent speed comparison. Disk/index pages exclude SQLite/model/native peak memory."
@@ -389,6 +389,21 @@
         1977.4905059994126
       ],
       "peak_rss_kib": 851240
+    },
+    "book_query_bounded_windows": {
+      "source_chars": 2450000,
+      "retrieved_chars": 8541,
+      "python_query_peak_bytes": 121434,
+      "query_ms": 15.811908000614494,
+      "method": "Python tracemalloc started after ingestion; excludes source/native allocations. SQL returns windows rather than full section copies per candidate."
+    },
+    "book_query_pre_fix_draft": {
+      "source_chars": 2450000,
+      "retrieved_chars": 8541,
+      "python_query_peak_bytes": 395690159,
+      "query_ms": 156.59255500031577,
+      "source_commit": "539b941f1025a2e1a79de672703f059a8742f523 (pre-window-fix unmerged draft)",
+      "method": "Same authored Unicode text/query; tracemalloc started after ingestion; excludes existing source/native allocations. Current source extraction is reused, only the previous Index is loaded."
     }
   },
   "installed_wheel_smoke": {
