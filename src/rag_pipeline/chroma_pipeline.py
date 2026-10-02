@@ -1,95 +1,111 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, List
+import hashlib
+import json
+from collections import defaultdict
+from collections.abc import Callable
 
-from .cleanup import purge_stale_data_streaming
+from .cleanup import purge_stale_data_streaming, purge_stale_source_ids
 from .models import Chunk
-from .retrieval import first_hash_by_pdf, group_chunk_ids_by_pdf
+
+
+def document_fingerprint(chunks: list[Chunk], index_signature: str = "default") -> str:
+    """Invalidate indexes when extraction, enrichment, or embedding config changes."""
+    digest = hashlib.sha256(json.dumps(index_signature).encode())
+    for c in sorted(chunks, key=lambda c: c.id):
+        record = (
+            c.id,
+            c.file_hash,
+            c.pipeline_version,
+            c.text_with_context or c.text,
+            c.page_number,
+            c.is_garbled,
+        )
+        digest.update(b"\n")
+        digest.update(json.dumps(record, ensure_ascii=False).encode())
+    return "v2:" + digest.hexdigest()
 
 
 def populate_chromadb(
     *,
-    chunks: List[Chunk],
+    chunks: list[Chunk],
     collection,
-    manifest: Dict[str, str],
-    update_manifest_bulk_fn: Callable[[str, Dict[str, str]], None],
-    remove_manifest_entries_fn: Callable[[str, List[str]], None],
+    manifest: dict[str, str],
+    update_manifest_bulk_fn: Callable[[str, dict[str, str]], None],
+    remove_manifest_entries_fn: Callable[[str, list[str]], None],
     logger=None,
     batch_size: int = 50,
+    index_signature: str = "default",
 ) -> object:
-    chunks_to_ingest: List[Chunk] = []
-    pdfs_to_update = set()
+    """Synchronize a complete corpus; checkpoint each PDF only after success.
+
+    Requires a single ingestion writer. Upserts are idempotent, so an interrupted
+    document is retried. Stale records are deleted only after all replacements
+    have succeeded. The backend cannot provide an atomic document transaction;
+    readers may see a partial update while ingestion runs.
+    """
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    groups: dict[str, list[Chunk]] = defaultdict(list)
+    seen = set()
     for chunk in chunks:
         if (
-            chunk.pdf_name not in manifest
-            or manifest[chunk.pdf_name] != chunk.file_hash
+            not chunk.id
+            or chunk.id in seen
+            or not chunk.pdf_name
+            or not chunk.file_hash
         ):
-            chunks_to_ingest.append(chunk)
-            pdfs_to_update.add(chunk.pdf_name)
-    if not chunks_to_ingest:
-        return collection
+            raise ValueError(
+                "Chunks must have unique IDs, sources, and nonempty file hashes"
+            )
+        seen.add(chunk.id)
+        groups[chunk.pdf_name].append(chunk)
+    for name, group in groups.items():
+        if len({(c.file_hash, c.pipeline_version) for c in group}) != 1:
+            raise ValueError(f"Inconsistent document versions: {name}")
 
-    new_ids_by_pdf = group_chunk_ids_by_pdf(chunks_to_ingest)
-    for pdf_name in pdfs_to_update:
-        new_ids_for_pdf = new_ids_by_pdf.get(pdf_name, set())
-        if not new_ids_for_pdf:
+    for name, group in sorted(groups.items()):
+        fingerprint = document_fingerprint(group, index_signature)
+        if manifest.get(name) == fingerprint:
+            continue
+        try:
+            for start in range(0, len(group), batch_size):
+                batch = group[start : start + batch_size]
+                collection.upsert(
+                    ids=[c.id for c in batch],
+                    documents=[c.text_with_context or c.text for c in batch],
+                    metadatas=[
+                        {
+                            "source": c.pdf_name,
+                            "page": c.page_number,
+                            "chunk_index": c.chunk_index,
+                            "file_hash": c.file_hash,
+                            "pipeline_version": c.pipeline_version,
+                            "is_garbled": c.is_garbled,
+                        }
+                        for c in batch
+                    ],
+                )
+            # Use the bounded scanner for this source; do not fetch a whole book.
+            purge_stale_source_ids(
+                collection, name, {c.id for c in group}, delete_batch_size=batch_size
+            )
+            update_manifest_bulk_fn("chroma", {name: fingerprint})
+        except Exception:
             if logger:
                 logger.error(
-                    "Skipping stale deletion for %s: No new chunks found. Manual check required.",
-                    pdf_name,
+                    "Index update failed for %s; manifest was not advanced", name
                 )
-            continue
-        existing_data = collection.get(where={"source": pdf_name}, include=[])
-        if existing_data and existing_data.get("ids"):
-            stale_ids = list(set(existing_data.get("ids", [])) - new_ids_for_pdf)
-            if stale_ids:
-                collection.delete(ids=stale_ids)
+            raise
 
-    current_pdfs = {c.pdf_name for c in chunks}
-    removed_pdfs = sorted(set(manifest.keys()) - current_pdfs)
-    for pdf_name in removed_pdfs:
-        existing_data = collection.get(where={"source": pdf_name}, include=[])
-        stale_ids = existing_data.get("ids", []) if existing_data else []
-        if stale_ids:
-            collection.delete(ids=stale_ids)
-    remove_manifest_entries_fn("chroma", removed_pdfs)
-
-    failed_pdfs = set()
-    for i in range(0, len(chunks_to_ingest), batch_size):
-        batch = chunks_to_ingest[i : i + batch_size]
-        ids = [c.id for c in batch]
-        docs = [c.text_with_context if c.text_with_context else c.text for c in batch]
-        metas = [
-            {
-                "source": str(c.pdf_name),
-                "page": int(c.page_number),
-                "is_garbled": bool(c.is_garbled),
-            }
-            for c in batch
-        ]
-        try:
-            collection.upsert(ids=ids, documents=docs, metadatas=metas)
-        except (ValueError, RuntimeError, OSError):
-            for chunk in batch:
-                failed_pdfs.add(chunk.pdf_name)
-
-    pdf_hash_by_name = first_hash_by_pdf(chunks_to_ingest)
-    manifest_updates = {}
-    for pdf in pdfs_to_update:
-        if pdf in failed_pdfs:
-            continue
-        current_hash = pdf_hash_by_name.get(pdf)
-        if current_hash:
-            manifest_updates[pdf] = current_hash
-    update_manifest_bulk_fn("chroma", manifest_updates)
+    # Deletions must run even when no document needs ingestion (including empty corpus).
+    for name in sorted(set(manifest) - set(groups)):
+        collection.delete(where={"source": name})
+        remove_manifest_entries_fn("chroma", [name])
     return collection
 
 
 def purge_stale_data(collection, *, valid_sources: set[str], logger=None) -> int:
     return purge_stale_data_streaming(
-        collection,
-        valid_sources=valid_sources,
-        fetch_size=5000,
-        delete_batch_size=1000,
-        logger=logger,
+        collection, valid_sources=valid_sources, logger=logger
     )

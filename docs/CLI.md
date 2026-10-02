@@ -1,28 +1,15 @@
 # CLI Reference
 
-Executable: `rag-pipeline`
+Installed-package commands:
 
-## Commands
+- `rag-pipeline ingest [--base-dir PATH]`: synchronize local PDFs into an atomic master checkpoint. Offline; no credentials or model downloads. Reports chunk/document counts and exits nonzero on parse, configuration, or persistence failure.
+- `rag-pipeline smoke [--live]`: offline retrieval smoke by default; `--live` checks credential presence and Ollama reachability without paid calls.
 
-### `rag-pipeline test`
+Developer commands require a source checkout and development dependencies:
 
-Run full pytest suite.
+- `rag-pipeline test`: run pytest in the current directory. Run from the repository root.
+- `rag-pipeline validate-notebook [PATH]`: check notebook schema and Python syntax, with magics sanitized. Defaults to `Python3finale.ipynb`.
+- `rag-pipeline audit-notebook [PATH]`: check notebook architecture patterns. This is a structural check, not a complete security audit.
+- `rag-pipeline benchmark [--samples N] [--repeats N] [--output PATH]`: repeated helper benchmarks with median/p95 latency and correctness checks. Default samples: 20000, repeats: 5, output: `benchmarks/latest.json`.
 
-### `rag-pipeline validate-notebook [PATH]`
-
-Validate notebook schema and sanitized Python syntax.  
-Default path: `Python3finale.ipynb`.
-
-### `rag-pipeline audit-notebook [PATH]`
-
-Run architecture/pattern checks against the notebook.  
-Default path: `Python3finale.ipynb`.
-
-### `rag-pipeline benchmark [--samples N] [--output PATH]`
-
-Run benchmark harness and write JSON metrics output.
-
-### `rag-pipeline smoke [--live]`
-
-- No flag: offline smoke (safe defaults, no paid external calls).
-- `--live`: env-gated live prerequisites check (`GROQ_API_KEY`, Ollama health).
+For source-directory discovery, script-based developer commands first use the installed editable checkout and otherwise use the current repository root. A wheel installed without a checkout cannot run repository-only scripts.

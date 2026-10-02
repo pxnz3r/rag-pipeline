@@ -25,7 +25,11 @@ def build_bm25_index(
         if logger:
             logger.warning("No chunks available for BM25 indexing.")
         return None, {}
-    tokenized_corpus = [tokenize_for_bm25(doc) for doc in corpus_texts]
+    indexed = [(c, tokenize_for_bm25(doc)) for c, doc in zip(chunks, corpus_texts)]
+    indexed = [(c, tokens) for c, tokens in indexed if tokens]
+    if not indexed:
+        return None, {}
+    tokenized_corpus = [tokens for _, tokens in indexed]
     bm25_index = BM25Okapi(tokenized_corpus)
-    bm25_id_map = {i: c.id for i, c in enumerate(chunks)}
+    bm25_id_map = {i: c.id for i, (c, _) in enumerate(indexed)}
     return bm25_index, bm25_id_map

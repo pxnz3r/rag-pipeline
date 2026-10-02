@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
@@ -12,6 +13,31 @@ from .storage import get_file_hash, save_json_atomic
 from .text import is_text_garbled, sanitize_text
 
 
+class PDFProcessingError(RuntimeError):
+    """A PDF could not be read completely; its previous checkpoint is preserved."""
+
+
+def split_page_text(text: str, max_chars: int = 1800, overlap: int = 200) -> list[str]:
+    """Bound embedding input while retaining overlap and stable page-local IDs."""
+    if max_chars <= 0 or not 0 <= overlap < max_chars:
+        raise ValueError("Invalid chunk size or overlap")
+    parts = []
+    start = 0
+    while start < len(text):
+        end = min(start + max_chars, len(text))
+        if end < len(text):
+            boundary = text.rfind(" ", start + max_chars // 2, end)
+            if boundary > start + overlap:
+                end = boundary
+        part = text[start:end].strip()
+        if part:
+            parts.append(part)
+        if end == len(text):
+            break
+        start = end - overlap
+    return parts
+
+
 def process_pdf_page_level(
     pdf_path: Path,
     processed_state: Dict[str, Tuple[str, str]],
@@ -21,7 +47,18 @@ def process_pdf_page_level(
     garble_threshold: float = 0.40,
     timeout_ctx=None,
     logger=None,
-) -> list[Chunk]:
+    chunk_max_chars: int = 1800,
+    chunk_overlap_chars: int = 200,
+    max_pdf_bytes: int = 100 * 1024 * 1024,
+    max_pdf_pages: int = 10000,
+) -> list[Chunk] | None:
+    if min_chunk_chars <= 0 or max_pdf_bytes <= 0 or max_pdf_pages <= 0:
+        raise ValueError("PDF processing limits must be positive")
+    if not 0 <= garble_threshold <= 1:
+        raise ValueError("garble_threshold must be between 0 and 1")
+    split_page_text("", chunk_max_chars, chunk_overlap_chars)
+    if pdf_path.stat().st_size > max_pdf_bytes:
+        raise PDFProcessingError(f"PDF exceeds byte limit: {pdf_path.name}")
     current_hash = get_file_hash(pdf_path, logger=logger)
     if not current_hash:
         if logger:
@@ -32,7 +69,7 @@ def process_pdf_page_level(
     elif pdf_path.name in processed_state:
         stored_hash, stored_ver = processed_state[pdf_path.name]
         if stored_hash == current_hash and stored_ver == pipeline_version:
-            return []
+            return None
 
     chunks: list[Chunk] = []
     cnt_total = cnt_kept = cnt_garbled = cnt_short = cnt_kept_garbled = 0
@@ -53,7 +90,7 @@ def process_pdf_page_level(
                                 "Skipping encrypted PDF (password required): %s",
                                 pdf_path.name,
                             )
-                        return []
+                        raise PDFProcessingError(f"Password required: {pdf_path.name}")
                 except (
                     PdfReadError,
                     TimeoutError,
@@ -62,8 +99,12 @@ def process_pdf_page_level(
                 ) as exc:
                     if logger:
                         logger.error("Error decrypting %s: %s", pdf_path.name, exc)
-                    return []
+                    raise PDFProcessingError(
+                        f"Cannot decrypt: {pdf_path.name}"
+                    ) from exc
 
+            if len(reader.pages) > max_pdf_pages:
+                raise PDFProcessingError(f"PDF exceeds page limit: {pdf_path.name}")
             for page_num, page in enumerate(reader.pages, start=1):
                 raw_text = page.extract_text() or ""
                 cnt_total += 1
@@ -73,7 +114,7 @@ def process_pdf_page_level(
                     continue
 
                 is_garbled_flag = False
-                if is_text_garbled(text, threshold=garble_threshold):
+                if is_text_garbled(raw_text, threshold=garble_threshold):
                     if len(text) > 2000:
                         is_garbled_flag = True
                         cnt_kept_garbled += 1
@@ -88,23 +129,26 @@ def process_pdf_page_level(
                         cnt_garbled += 1
                         continue
 
-                chunks.append(
-                    Chunk(
-                        id=f"{pdf_path.name}::p{page_num}::i0",
-                        text=text,
-                        pdf_name=pdf_path.name,
-                        file_hash=current_hash,
-                        pipeline_version=pipeline_version,
-                        page_number=page_num,
-                        chunk_index=0,
-                        pdf_path=str(pdf_path),
-                        char_count=len(text),
-                        word_count=len(text.split()),
-                        has_numbers=any(c.isdigit() for c in text),
-                        has_formula=any(c in text for c in ["$", "%", "="]),
-                        is_garbled=is_garbled_flag,
+                for chunk_index, chunk_text in enumerate(
+                    split_page_text(text, chunk_max_chars, chunk_overlap_chars)
+                ):
+                    chunks.append(
+                        Chunk(
+                            id=f"{pdf_path.name}::p{page_num}::i{chunk_index}",
+                            text=chunk_text,
+                            pdf_name=pdf_path.name,
+                            file_hash=current_hash,
+                            pipeline_version=pipeline_version,
+                            page_number=page_num,
+                            chunk_index=chunk_index,
+                            pdf_path=str(pdf_path),
+                            char_count=len(chunk_text),
+                            word_count=len(chunk_text.split()),
+                            has_numbers=any(c.isdigit() for c in chunk_text),
+                            has_formula=any(c in chunk_text for c in ["$", "%", "="]),
+                            is_garbled=is_garbled_flag,
+                        )
                     )
-                )
                 cnt_kept += 1
     except (
         OSError,
@@ -115,7 +159,7 @@ def process_pdf_page_level(
     ) as exc:
         if logger:
             logger.error("Error processing %s: %s", pdf_path, exc)
-        return []
+        raise PDFProcessingError(f"Could not process PDF: {pdf_path.name}") from exc
 
     if cnt_total > 0 and logger:
         logger.info(
@@ -145,30 +189,40 @@ def sync_master_chunks(
     master_chunks_file: str,
     logger=None,
 ) -> list[Chunk]:
-    dirty = False
-    for i, pdf in enumerate(all_pdfs):
+    if gc_interval_pdfs <= 0:
+        raise ValueError("gc_interval_pdfs must be positive")
+    pdfs = list(all_pdfs)
+    names = {pdf.name for pdf in pdfs}
+    if len(names) != len(pdfs):
+        raise ValueError("PDF basenames must be unique within a corpus")
+    # Stage changes and commit before mutating the caller's in-memory checkpoint.
+    staged_map = {cid: c for cid, c in chunk_map.items() if c.pdf_name in names}
+    ids_by_pdf = defaultdict(set)
+    for cid, chunk in staged_map.items():
+        ids_by_pdf[chunk.pdf_name].add(cid)
+    dirty = len(staged_map) != len(chunk_map)
+    for i, pdf in enumerate(pdfs):
         new_chunks = process_fn(pdf, processed_state)
-        if new_chunks:
-            old_ids = [
-                cid
-                for cid, old_chunk in chunk_map.items()
-                if old_chunk.pdf_name == pdf.name
-            ]
+        if new_chunks is not None:
+            old_ids = ids_by_pdf.pop(pdf.name, set())
             for cid in old_ids:
-                del chunk_map[cid]
+                del staged_map[cid]
             for chunk in new_chunks:
-                chunk_map[chunk.id] = chunk
+                staged_map[chunk.id] = chunk
+                ids_by_pdf[chunk.pdf_name].add(chunk.id)
             dirty = True
         if i > 0 and i % gc_interval_pdfs == 0:
             gc.collect()
 
     if dirty:
         sorted_chunks = sorted(
-            [c.to_dict() for c in chunk_map.values()], key=lambda x: x["id"]
+            [c.to_dict() for c in staged_map.values()], key=lambda x: x["id"]
         )
         save_json_atomic(
             sorted_chunks, processed_dir / master_chunks_file, logger=logger
         )
+        chunk_map.clear()
+        chunk_map.update(staged_map)
         if logger:
             logger.info("Updated master chunks with %s items.", len(chunk_map))
     else:

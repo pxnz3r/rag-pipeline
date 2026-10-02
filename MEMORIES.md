@@ -32,3 +32,11 @@
 
 ## Open Questions / TODO
 - Optional: Add a full live end-to-end smoke run in CI using repository secrets and self-hosted services.
+
+## 2026-10-02 audit update
+- Version 0.2.0 adds local ingestion, bounded chunks, structured citations, graph generations, and retrieval quality metrics.
+- Checkpoint/manifest corruption now fails visibly; callers must restore or deliberately rebuild state.
+- Dependabot version-update PRs disabled; security-update settings are separate and were inaccessible to the session's integration.
+- See `docs/AUDIT-2026-10-02.md` for verified findings, coverage, and unresolved upstream advisories.
+- Current cleanup scans spool IDs before deleting; do not mutate the backend during pagination.
+- Graph generations are retained for recovery; reset creates a new generation.

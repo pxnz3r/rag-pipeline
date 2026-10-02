@@ -17,7 +17,9 @@ Core logic is moved into `src/rag_pipeline`, while the notebook remains a thin o
 ## Core Capabilities
 
 - Hybrid retrieval architecture (dense + BM25 + reranking).
-- Manifest-based ingestion safety with atomic writes.
+- Local PDF ingestion with bounded overlapping chunks and atomic checkpoints.
+- Document fingerprints and generation-based graph rebuilds.
+- Source/page citations and structured query failure states.
 - Chunked stale cleanup with bounded-memory deletion.
 - Offline and env-gated live smoke checks.
 - Notebook validation and architectural pattern auditing.
@@ -50,13 +52,16 @@ Core logic is moved into `src/rag_pipeline`, while the notebook remains a thin o
 ## Quick Start
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m pip install -e .
+python -m pip install --upgrade pip
+python -m pip install -e . -r requirements-dev.txt
 ```
 
 ## CLI Runbook
 
 ```bash
+# local PDF extraction (place PDFs in ./data first; no API key needed)
+rag-pipeline ingest --base-dir .
+
 # test suite
 rag-pipeline test
 
@@ -69,13 +74,13 @@ rag-pipeline smoke
 rag-pipeline smoke --live
 
 # benchmark
-rag-pipeline benchmark --samples 20000 --output benchmarks/latest.json
+rag-pipeline benchmark --samples 20000 --repeats 7 --output benchmarks/latest.json
 ```
 
 ## Notebook Workflow
 
 Use `Python3finale.ipynb` for interactive iteration.  
-Keep logic changes in `src/rag_pipeline` and use notebook wrappers only for orchestration.
+Install `python -m pip install -e '.[notebook]'` from this checkout before using live adapters. Keep logic changes in `src/rag_pipeline` and use notebook wrappers only for orchestration. API enrichment is opt-in via `ENRICH_CONTEXT=1`; cached context selection is offline by default. See the operations runbook for model/service setup and migration.
 
 ## Quality Gates
 
@@ -85,6 +90,8 @@ CI validates:
 - notebook architectural patterns
 - offline smoke
 - CLI smoke
+- Python 3.10/3.12 compatibility, lint, and core dependency audit
+- Real persistent Chroma tests with synthetic embeddings
 
 ## Configuration
 
@@ -98,6 +105,7 @@ Main runtime knobs can be supplied via environment variables (for example):
 
 ## Documentation
 
+- [Audit, fixes, and remaining limits](docs/AUDIT-2026-10-02.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Operations Runbook](docs/OPERATIONS.md)
 - [Testing Guide](docs/TESTING.md)
@@ -109,3 +117,7 @@ Main runtime knobs can be supplied via environment variables (for example):
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Dependency automation
+
+Dependabot version-update PRs are disabled to avoid unsolicited update branches. CI remains enabled. Separate automatic security-update settings require repository administration access; see the operations runbook. Optional live dependencies have upstream advisories without published fixes, documented in the audit report; this project is intended for private local/library use, not an exposed multi-tenant service.

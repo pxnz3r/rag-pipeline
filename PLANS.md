@@ -44,3 +44,11 @@ Harden the notebook-based RAG pipeline with reusable modules, tests, benchmarks,
 - `python scripts/smoke_e2e.py` -> offline smoke passed
 - `python -m rag_pipeline.cli smoke` -> offline smoke passed
 - Public repository: `https://github.com/pxnz3r/rag-pipeline`
+
+## 2026-10-02 audit and feature pass
+- [x] Reviewed package/notebook/state boundaries and branch automation.
+- [x] Added source-backed regression tests and fixed persistence, deletion, enrichment, indexing, and query failure paths.
+- [x] Added local ingestion, bounded chunking, citations, graph generation synchronization, and retrieval metrics.
+- [x] Verified Python 3.10/3.12, real local Chroma storage, dependency resolution/advisories, and installed-wheel commands.
+- [x] Replaced static-delete benchmarks with repeated correctness-checked mutable-backend benchmarks.
+- [x] Documented migration and remaining upstream/live-service limits in the audit and operations guides.
