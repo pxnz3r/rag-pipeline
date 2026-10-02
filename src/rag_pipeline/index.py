@@ -5,6 +5,7 @@ from __future__ import annotations
 import heapq
 import json
 import math
+import os
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -33,6 +34,10 @@ STOP = set(
 )
 
 
+def _walk_error(error):
+    raise error
+
+
 @dataclass(frozen=True)
 class Hit:
     id: str
@@ -50,6 +55,11 @@ class Hit:
 
 class Index:
     def __init__(self, path: str | Path, embedder=None, reranker=None):
+        signature = getattr(embedder, "signature", "")
+        if embedder is not None and (
+            not isinstance(signature, str) or not signature.strip()
+        ):
+            raise ValueError("Embedder requires a stable model/revision signature")
         self.path = Path(path)
         existed = self.path.exists()
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -57,9 +67,6 @@ class Index:
         self.db.row_factory = sqlite3.Row
         self.embedder = embedder
         self.reranker = reranker
-        if embedder is not None and not getattr(embedder, "signature", "").strip():
-            self.db.close()
-            raise ValueError("Embedder requires a stable model/revision signature")
         try:
             if existed and self._state("schema") != "2":
                 raise ValueError(
@@ -139,15 +146,22 @@ class Index:
             )
         # Validate before a no-op ingest as well.
         list(spans("", size, overlap))
-        paths = sorted(
-            p
-            for p in root.rglob("*")
-            if p.suffix.lower() in FORMATS
-            and not p.name.endswith(".meta.json")
-            and p.is_file()
-        )
-        if any(p.is_symlink() or not p.resolve().is_relative_to(root) for p in paths):
-            raise ValueError("Symlinked sources are not supported")
+        paths = []
+        for directory, subdirs, names in os.walk(
+            root, onerror=_walk_error, followlinks=False
+        ):
+            if any((Path(directory) / name).is_symlink() for name in subdirs):
+                raise ValueError("Symlinked source directories are not supported")
+            for name in names:
+                path = Path(directory) / name
+                if path.suffix.lower() not in FORMATS or name.endswith(".meta.json"):
+                    continue
+                if path.is_symlink() or not path.is_file():
+                    raise ValueError(
+                        "Symlinked or unreadable source files are not supported"
+                    )
+                paths.append(path)
+        paths.sort()
         signature = getattr(self.embedder, "signature", "")
         pipeline = json.dumps(["extract-v1", size, overlap, signature])
         with self._transaction(write=True):
@@ -194,30 +208,42 @@ class Index:
             [(doc.id, key, str(value)) for key, value in doc.metadata.items()],
         )
         title = " ".join(str(v) for v in doc.metadata.values())
+        batch = []
         for locator, text in doc.sections:
             section = self.db.execute(
                 "INSERT INTO sections(document,locator,text,chars) VALUES(?,?,?,?)",
                 (doc.id, locator, text, len(text)),
             ).lastrowid
-            offsets = list(spans(text, size, overlap))
-            for offset in range(0, len(offsets), 32):
-                batch = offsets[offset : offset + 32]
-                texts = [title[:300] + "\n" + text[a:b] for a, b in batch]
-                vectors = self._vectors(texts) if self.embedder else [None] * len(batch)
-                self.db.executemany(
-                    "INSERT INTO chunks VALUES(?,?,?,?,?,?)",
-                    [
-                        (
-                            f"{doc.id}#{locator}:{a}-{b}",
-                            section,
-                            a,
-                            b,
-                            t,
-                            v.tobytes() if v is not None else None,
-                        )
-                        for (a, b), t, v in zip(batch, texts, vectors)
-                    ],
+            for a, b in spans(text, size, overlap):
+                batch.append(
+                    (
+                        f"{doc.id}#{locator}:{a}-{b}",
+                        section,
+                        a,
+                        b,
+                        title[:300] + "\n" + text[a:b],
+                    )
                 )
+                if len(batch) == 32:
+                    self._insert_chunks(batch)
+                    batch = []
+        self._insert_chunks(batch)
+
+    def _insert_chunks(self, batch):
+        if not batch:
+            return
+        vectors = (
+            self._vectors([row[4] for row in batch])
+            if self.embedder
+            else [None] * len(batch)
+        )
+        self.db.executemany(
+            "INSERT INTO chunks VALUES(?,?,?,?,?,?)",
+            [
+                (*row, v.tobytes() if v is not None else None)
+                for row, v in zip(batch, vectors)
+            ],
+        )
 
     def _text(self, section, start, end):
         return self.db.execute(

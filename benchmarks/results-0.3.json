@@ -28,11 +28,11 @@
       "total": 3946
     },
     "0.3": {
-      "src/rag_pipeline": 1354,
-      "tests": 646,
+      "src/rag_pipeline": 1380,
+      "tests": 663,
       "scripts": 238,
       "notebook_code": 13,
-      "total": 2251
+      "total": 2294
     }
   },
   "method": "Non-reranked final comparisons run sequentially; reranked final uses batch8 and one repetition/query after one global warmup. Earlier baseline BM25 is only that route, never a comparison against the complete v0.2 model/graph/generation system. Model load excluded, index encoding included. Peak RSS profiler compares the same 40 legal windows; logits identical. Profiler latency was not measured under identical worker contention: interpret memory, not relative speed. No private corpus or generated-answer accuracy tested. Aggregate metrics/samples retained in Git; CLI evaluation outputs complete per-query rankings for inspection and reproduction. Non-reranked timings refreshed after SQL window extraction; reranked numbers remain the batch-8 pilot with identical passage inputs, recorded before this memory-only change.",
@@ -317,39 +317,39 @@
     },
     "scale-final": {
       "rows": 100000,
-      "ingest_seconds": 2.6952097599996705,
-      "unchanged_ingest_seconds": 0.009069450999959372,
+      "ingest_seconds": 2.5875553930000024,
+      "unchanged_ingest_seconds": 0.006816426001023501,
       "index_bytes": 36945920,
       "queries": [
         {
           "match": "any",
           "returned": 5,
           "samples_ms": [
-            63.58432800061564,
-            63.411753999389475,
-            65.26847099939914,
-            64.24918300035642,
-            63.74112699995749,
-            64.81447399983153,
-            62.62523799978226
+            66.19047099957243,
+            65.0263499992434,
+            66.77846499951556,
+            63.964380000470555,
+            67.57785999980115,
+            66.40271299875167,
+            66.25831100063806
           ],
-          "median_ms": 63.74112699995749,
-          "p95_ms": 65.13227189952886
+          "median_ms": 66.25831100063806,
+          "p95_ms": 67.33804149971547
         },
         {
           "match": "all",
           "returned": 1,
           "samples_ms": [
-            2.7481359993544174,
-            2.790407999782474,
-            2.677691999451781,
-            2.685814999495051,
-            2.909513000304287,
-            2.898986999753106,
-            2.786412999739696
+            2.8525719990284415,
+            2.8402329990058206,
+            3.24516799992125,
+            2.931388000433799,
+            2.9105160010658437,
+            3.011526001500897,
+            2.748969000094803
           ],
-          "median_ms": 2.786412999739696,
-          "p95_ms": 2.9063552001389326
+          "median_ms": 2.9105160010658437,
+          "p95_ms": 3.1750754003951442
         }
       ],
       "limitations": "Synthetic exact-account query; any matches every row and all matches only the target. Different result semantics, not an equivalent speed comparison. Disk/index pages exclude SQLite/model/native peak memory."
@@ -404,6 +404,29 @@
       "query_ms": 156.59255500031577,
       "source_commit": "539b941f1025a2e1a79de672703f059a8742f523 (pre-window-fix unmerged draft)",
       "method": "Same authored Unicode text/query; tracemalloc started after ingestion; excludes existing source/native allocations. Current source extraction is reused, only the previous Index is loaded."
+    },
+    "row_embedding_batching": {
+      "per_section": {
+        "seconds": [
+          10.633646010999655,
+          10.210114720001002,
+          10.91346577800141
+        ],
+        "median_seconds": 10.633646010999655
+      },
+      "across_sections": {
+        "seconds": [
+          7.527080912999736,
+          6.986268640999697,
+          6.0979404609988705
+        ],
+        "median_seconds": 6.986268640999697
+      },
+      "rows": 2000,
+      "embedding": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx:mean:256:v1",
+      "method": "Same 2000-row CSV, same warm actual CPU MiniLM instance/threads, separate fresh indexes, three sequential repetitions per implementation. All normalized vectors agree within 1e-5 and exact-account lexical lookup agrees. Per-section reference is the unpublished draft before batching.",
+      "dataset_recipe": "2000 rows: headers account,description,USD millions,year; row i = i,Revenue account i,i.50,2024; ledger.csv; no sidecar.",
+      "reference_commit": "aace9b8e243c4e5a1ee5d6f61cd5df8a18f9fde6"
     }
   },
   "installed_wheel_smoke": {

@@ -243,3 +243,20 @@ def test_missing_schema_is_not_silently_reinitialized(tmp_path, corpus):
         assert not connection.execute(
             "SELECT name FROM sqlite_master WHERE name='fts'"
         ).fetchone()
+
+
+def test_unreadable_directory_never_prunes_existing_corpus(tmp_path, corpus):
+    import os
+
+    if os.name != "posix" or os.geteuid() == 0:
+        pytest.skip("Requires POSIX directory permissions for a non-root user")
+    with Index(tmp_path / "index.sqlite") as index:
+        index.ingest(corpus)
+        before = index.status()
+        corpus.chmod(0)
+        try:
+            with pytest.raises(PermissionError):
+                index.ingest(corpus)
+        finally:
+            corpus.chmod(0o700)
+        assert index.status() == before

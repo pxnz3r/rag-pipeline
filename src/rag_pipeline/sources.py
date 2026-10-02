@@ -52,7 +52,7 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
         raise ValueError("Source exceeds byte limit")
     sidecar = path.with_name(path.name + ".meta.json")
     meta = {}
-    if sidecar.exists():
+    if sidecar.exists() or sidecar.is_symlink():
         if sidecar.is_symlink() or sidecar.stat().st_size > 32768:
             raise ValueError("Unsafe or oversized metadata")
         meta = metadata(json.loads(sidecar.read_text(encoding="utf-8")))
