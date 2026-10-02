@@ -51,3 +51,31 @@ def test_purge_stale_data_streaming_deletes_in_batches():
     )
     assert deleted == 5
     assert coll.deleted_ids == ["0", "1", "2", "3", "4"]
+
+
+class MutatingCollection(FakeCollection):
+    def delete(self, ids):
+        super().delete(ids)
+        self._rows = [r for r in self._rows if r["id"] not in ids]
+
+
+def test_cleanup_does_not_skip_rows_after_real_deletions():
+    rows = [
+        {"id": str(i), "meta": {"source": "keep.pdf" if i % 3 == 0 else "old.pdf"}}
+        for i in range(30)
+    ]
+    coll = MutatingCollection(rows)
+    deleted = purge_stale_data_streaming(
+        coll, {"keep.pdf"}, fetch_size=4, delete_batch_size=3
+    )
+    assert deleted == 20
+    assert len(coll._rows) == 10
+    assert all(r["meta"]["source"] == "keep.pdf" for r in coll._rows)
+
+
+def test_missing_metadata_is_orphaned():
+    class MissingMetadata:
+        def get(self, **kwargs):
+            return {"ids": ["a", "b"], "metadatas": None}
+
+    assert list(iter_orphan_ids(MissingMetadata(), set(), fetch_size=10)) == ["a", "b"]
