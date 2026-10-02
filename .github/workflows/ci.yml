@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-and-audit:
+  core-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -77,3 +77,18 @@ jobs:
           pip install -e . -r requirements-dev.txt "chromadb>=1.5.9,<2"
       - name: Test persistent storage with synthetic embeddings
         run: pytest tests/test_chroma_integration.py
+
+  # Preserve the exact required branch-protection check name across the matrix.
+  test-and-audit:
+    needs: [core-tests, storage-integration]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require all checks to pass
+        env:
+          CORE_RESULT: ${{ needs.core-tests.result }}
+          STORAGE_RESULT: ${{ needs.storage-integration.result }}
+        run: |
+          test "$CORE_RESULT" = success
+          test "$STORAGE_RESULT" = success
