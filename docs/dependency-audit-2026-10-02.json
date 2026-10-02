@@ -45,12 +45,14 @@
         "rich": "15.0.0",
         "rpds-py": "0.30.0",
         "ruff": "0.16.10",
+        "setuptools": "84.0.0",
         "sortedcontainers": "2.4.0",
         "tomli": "2.4.1",
         "tomli-w": "1.2.0",
         "traitlets": "5.16.1",
         "typing-extensions": "4.16.0",
-        "urllib3": "2.8.0"
+        "urllib3": "2.8.0",
+        "wheel": "0.48.0"
       }
     },
     "312": {
@@ -97,12 +99,14 @@
         "rich": "15.0.0",
         "rpds-py": "2026.6.3",
         "ruff": "0.16.10",
+        "setuptools": "84.0.0",
         "sortedcontainers": "2.4.0",
         "tomli": "2.4.1",
         "tomli-w": "1.2.0",
         "traitlets": "5.16.1",
         "typing-extensions": "4.16.0",
-        "urllib3": "2.8.0"
+        "urllib3": "2.8.0",
+        "wheel": "0.48.0"
       }
     }
   },
