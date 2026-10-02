@@ -1,123 +1,49 @@
 # RAG Pipeline
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pxnz3r/rag-pipeline/ci.yml?branch=main&label=CI)](https://github.com/pxnz3r/rag-pipeline/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Production-minded RAG project with:
-- A notebook orchestrator for interactive workflows.
-- A modular Python package for testable core logic.
-- CI quality gates, smoke checks, benchmarks, and structured docs.
-
-## Why This Project
-
-`rag-pipeline` is designed for teams that want notebook speed without notebook fragility.  
-Core logic is moved into `src/rag_pipeline`, while the notebook remains a thin orchestration layer.
-
-## Core Capabilities
-
-- Hybrid retrieval architecture (dense + BM25 + reranking).
-- Local PDF ingestion with bounded overlapping chunks and atomic checkpoints.
-- Document fingerprints and generation-based graph rebuilds.
-- Source/page citations and structured query failure states.
-- Chunked stale cleanup with bounded-memory deletion.
-- Offline and env-gated live smoke checks.
-- Notebook validation and architectural pattern auditing.
-- CLI-first developer workflow for testing, auditing, and benchmarking.
-
-## Project Layout
-
-```text
-.
-|-- Python3finale.ipynb
-|-- src/rag_pipeline/
-|   |-- cli.py
-|   |-- query_engine.py
-|   |-- chroma_pipeline.py
-|   |-- processing.py
-|   |-- enrichment.py
-|   |-- bm25_utils.py
-|   |-- manifest.py
-|   |-- cleanup.py
-|   |-- storage.py
-|   |-- config.py
-|   |-- observability.py
-|   `-- ...
-|-- tests/
-|-- scripts/
-|-- docs/
-`-- .github/workflows/ci.yml
-```
-
-## Quick Start
+Local, evidence-first retrieval for financial reports, account records, legal contracts, and books. One SQLite transaction synchronizes original text, metadata, full-text search and optional vectors. The core has only one third-party dependency (pypdf); NumPy/inference stay in the models extra. Default answers return exact evidence; optional generation must provide verifiable quotes. Numerical reasoning uses explicit source-bound decimal operations.
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install -e . -r requirements-dev.txt
+pip install -e .
+mkdir -p data
+# Add PDFs, TXT/Markdown, CSV, JSON or JSONL to data/.
+rag-pipeline ingest data
+rag-pipeline search "revenue" --filter company=Acme --filter year=2024
+rag-pipeline ask "revenue" --filter company=Acme --filter year=2024
 ```
 
-## CLI Runbook
+Add `report.pdf.meta.json` beside `report.pdf`, for example:
+
+```json
+{"company":"Acme","year":2024,"kind":"annual_report","jurisdiction":"NY"}
+```
+
+Filters apply before lexical and dense scoring. CSV rows repeat column labels; PDFs retain page locators; text evidence includes original character offsets. Changing a file, its metadata or chunking/model configuration invalidates its index. Failed ingestion rolls back the entire update. A missing source directory never silently deletes the corpus.
+
+Optional CPU semantic retrieval and reranking:
 
 ```bash
-# local PDF extraction (place PDFs in ./data first; no API key needed)
-rag-pipeline ingest --base-dir .
-
-# test suite
-rag-pipeline test
-
-# notebook checks
-rag-pipeline validate-notebook Python3finale.ipynb
-rag-pipeline audit-notebook Python3finale.ipynb
-
-# smoke checks
-rag-pipeline smoke
-rag-pipeline smoke --live
-
-# benchmark
-rag-pipeline benchmark --samples 20000 --repeats 7 --output benchmarks/latest.json
+pip install -e '.[models]'
+rag-pipeline --dense ingest data
+rag-pipeline --dense search "How much did sales increase?" --filter company=Acme
+rag-pipeline --dense --rerank search "Which obligations survive termination?" --filter jurisdiction=NY
 ```
 
-## Notebook Workflow
+Model assets are pinned ONNX files; no PyTorch, pickle caches, graph database, or remotely executable model code. Dense search scans filtered vectors in bounded batches. Reranking costs more and stays opt-in. First use downloads public weights. No data leaves the machine for retrieval; `ask --generate` explicitly sends evidence to Groq and requires `.[generation]` plus `GROQ_API_KEY`.
 
-Use `Python3finale.ipynb` for interactive iteration.  
-Install `python -m pip install -e '.[notebook]'` from this checkout before using live adapters. Keep logic changes in `src/rag_pipeline` and use notebook wrappers only for orchestration. API enrichment is opt-in via `ENRICH_CONTEXT=1`; cached context selection is offline by default. See the operations runbook for model/service setup and migration.
+```python
+from rag_pipeline import Index, answer
 
-## Quality Gates
+with Index("processed_data/index.sqlite") as index:
+    result = answer(index, "What was revenue?", filters={"company": "Acme", "year": "2024"})
+```
 
-CI validates:
-- tests
-- notebook schema/syntax
-- notebook architectural patterns
-- offline smoke
-- CLI smoke
-- Python 3.10/3.12 compatibility, lint, and core dependency audit
-- Real persistent Chroma tests with synthetic embeddings
+Measured checks include independent FinQA row judgments, CUAD legal character spans, an authored regression canary, and 100,000 account rows. See [results and reproduction](docs/TESTING.md) and [research](docs/RESEARCH.md). These are transparent subsets, not proof of production accuracy or a claim of state-of-the-art performance. Citation validation proves quote provenance, not semantic entailment; ambiguous scope, wrong units, OCR and unsupported questions still need review.
 
-## Configuration
+**0.3 is a breaking architecture simplification.** Reindex original files into SQLite; keep old checkpoints/stores for rollback. See [migration and operations](docs/OPERATIONS.md), [architecture](docs/ARCHITECTURE.md), [CLI](docs/CLI.md), and [security](SECURITY.md). The notebook is a small optional interface over this API.
 
-Main runtime knobs can be supplied via environment variables (for example):
-- `PIPELINE_VERSION`
-- `GROQ_TIMEOUT`
-- `RETRIEVAL_TOP_K`
-- `RERANK_CANDIDATES`
-- `FINAL_TOP_K`
-- `MAX_CHECKPOINT_BYTES`
+Dependabot version-update PRs remain disabled. CI uses read-only permissions and never writes branches. Repository-level automatic security-update settings require owner access and remain unverified; [operations](docs/OPERATIONS.md) explains the separate setting.
 
-## Documentation
-
-- [Audit, fixes, and remaining limits](docs/AUDIT-2026-10-02.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Operations Runbook](docs/OPERATIONS.md)
-- [Testing Guide](docs/TESTING.md)
-- [CLI Reference](docs/CLI.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security Policy](SECURITY.md)
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
-## Dependency automation
-
-Dependabot version-update PRs are disabled to avoid unsolicited update branches. CI remains enabled. Separate automatic security-update settings require repository administration access; see the operations runbook. Optional live dependencies have upstream advisories without published fixes, documented in the audit report; this project is intended for private local/library use, not an exposed multi-tenant service.
+MIT licensed. External benchmark sources retain their own attribution/license.

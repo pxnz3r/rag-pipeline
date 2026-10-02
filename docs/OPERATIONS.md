@@ -1,80 +1,25 @@
-# Operations Runbook
+# Operations and migration
 
-## Local ingestion (no credentials or model downloads)
+## Install and scope
 
-```bash
-python -m pip install --upgrade pip
-python -m pip install -e . -r requirements-dev.txt
-mkdir -p ./data
-# Place PDFs directly inside ./data.
-rag-pipeline ingest --base-dir .
-rag-pipeline smoke
-```
+Python 3.10+ with SQLite FTS5 is required. Install `pip install .`; add `.[models]` for CPU dense/reranking or `.[generation]` for Groq. Default operations use no hosted inference. Model setup downloads pinned public tokenizer/ONNX files; later use loads the local Hugging Face cache. Groq generation explicitly sends the question, retrieved text and metadata to the vendor. Export keys separately; `.env` files are ignored and are not loaded automatically.
 
-`--base-dir` contains `data/`, `processed_data/`, `chroma_db/`, and `lightrag_index/`. The PDF directory is the complete corpus snapshot: removing a file removes its chunks on the next successful ingestion. Do not point ingestion at an accidentally empty/wrong directory. Back up state before migration. Encrypted/broken/over-limit PDFs cause a visible failure and preserve the previous master checkpoint.
+Create `data/` explicitly. `rag-pipeline ingest data` synchronizes that **complete directory**, recursively. Empty directories deliberately remove the corpus; absent directories fail. Symlinked files/directories and inaccessible source scans are rejected; no incomplete scan is treated as a complete empty corpus. Use one index per corpus; ingesting another directory into the same index replaces its contents. Scope company/year/jurisdiction/account with adjacent `filename.ext.meta.json` sidecars (up to 32 named short string/integer fields). Account data is retrieved with its row/record labels; metadata sidecars scope a file, not individual CSV fields.
 
-## Optional notebook adapters
+PDFs: 20 MiB input, 1,000 pages, 10 MiB extracted characters. A subprocess has a 45-second wall timeout and POSIX CPU/address-space/output-file caps. Windows only has the parent wall timeout. Resource limits are not a security sandbox: isolate hostile parsing under a separate OS/container boundary before exposing ingestion. Encrypted or textless/scanned PDFs fail and preserve the current index; OCR is not provided. Layout extraction may misorder complex tables, so use labeled CSV/JSON where numeric fidelity matters.
 
-From the repository root:
+All updates run inside a single durable SQLite transaction. Readers on separate connections retain an old committed snapshot. Ingestion holds the writer lock while parsing/encoding; the busy timeout is 30 seconds, and only one writer runs at once. Each `Index` connection belongs to its opening thread; serving async requests would require an explicit worker/connection pool. WAL can grow during long readers. Keep index/model/source directories private.
 
-```bash
-python -m pip install -e '.[notebook]'
-```
+## Migration from 0.2
 
-This extra installs large model dependencies. On CPU-only machines, first install a compatible CPU PyTorch wheel using PyTorch's official installation instructions to avoid downloading unnecessary CUDA packages. Install Ollama separately using its official platform installer; the notebook will not download/execute a mutable shell script. Pull `llama3.1` and `nomic-embed-text` before using graph ingestion.
+0.3 deliberately replaces the old Python API and developer CLI commands. Keep a copy of original PDFs and 0.2 `processed_data/`, `chroma_db/`, `lightrag_index/`. The new default file is `processed_data/index.sqlite`; no JSON, graph or Chroma state is read or deleted. Reingest originals using `rag-pipeline ingest data`. Add scope metadata and check cited values before relying on results. Install `.[models]` and run `--dense ingest` to build vectors; future ingests of that index require the same configured embedder. Lexical-only queries still work without model loading.
 
-Export `GROQ_API_KEY` before generation/evaluation. PDF extraction and cached BM25 preparation work without it. Set `ENRICH_CONTEXT=1` only when you intend to generate contexts through the API; default cache reuse does not call an API. Graph ingestion and generation remain explicit notebook function calls. Treat sending PDF excerpts to Groq as an external data transfer.
+Changing the embedder/configuration triggers a transactional full rebuild. To remove vectors entirely, create a separate lexical index with `--index another.sqlite`; do not overwrite the original. For rollback, use the 0.2 commit `e217ae819ec40c834205a7344f6c6c91af8193f7` in a separate virtual environment and the retained old stores. Old embeddings/enrichment are not silently trusted or migrated. Never purge retained stores until rollback is no longer needed.
 
-```bash
-rag-pipeline smoke --live
-```
+## Backup and health
 
-Live smoke checks the key's presence and Ollama reachability only. It does not validate the key against Groq, download models, or claim full integration success.
+Use SQLite's `Connection.backup()` for a live consistent backup. Copying only `index.sqlite` while WAL writers run is unsafe. Stop all readers/writers before filesystem copying or restoring an index. `rag-pipeline status` shows counts, generation and the embedding signature. Run `PRAGMA integrity_check` and FTS5's integrity-check command on an owner-controlled connection when diagnosing corruption; never replace a corrupt database with an empty index automatically.
 
-## Configuration
+## Automation
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `RAG_BASE_DIR` | `.` | Corpus/state root (CLI `--base-dir` overrides) |
-| `PIPELINE_VERSION` | `2.0` | Extraction algorithm version; tuning settings add a signature |
-| `CHUNK_MAX_CHARS` | `1800` | Maximum extracted chunk length |
-| `CHUNK_OVERLAP_CHARS` | `200` | Adjacent chunk overlap |
-| `MIN_CHUNK_CHARS` | `100` | Minimum retained page text length |
-| `MAX_PDF_BYTES` | `104857600` | Maximum source file size |
-| `MAX_PDF_PAGES` | `10000` | Maximum PDF page count |
-| `MAX_CHECKPOINT_BYTES` | `524288000` | Maximum loadable chunk checkpoint size |
-| `GROQ_TIMEOUT` | `20` | Groq client network timeout (seconds) |
-| `GENERATION_MODEL` | `llama-3.3-70b-versatile` | Answer/enrichment/evaluation model |
-| `DENSE_EMBEDDING_MODEL` | `BAAI/bge-large-en-v1.5` | Chroma embedding model; selects a separate collection |
-| `RERANKER_MODEL` | `BAAI/bge-reranker-large` | Cross-encoder reranker |
-| `RETRIEVAL_TOP_K` | `50` | Candidates per retrieval channel |
-| `RRF_K` | `60` | Fusion rank offset |
-| `RERANK_CANDIDATES` | `20` | Candidates to rerank |
-| `FINAL_TOP_K` | `5` | Final local contexts |
-| `RERANK_BATCH_SIZE` | `16` | Reranker prediction batch size |
-| `CONTEXT_MAX_CHARS` | `2000` | Per-context reranking/prompt budget |
-| `EVAL_THROTTLE_SEC` | `0.5` | Delay between evaluation questions |
-| `GC_INTERVAL_PDFS` | `50` | Garbage collection interval |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Operator-configured Ollama endpoint |
-
-Invalid configuration fails before state directories are created. Changing model IDs can trigger downloads and requires available vendor models. Settings are read at notebook bootstrap; rerun/restart the notebook after changing them so cached clients/models cannot retain old configuration.
-
-## Migration and recovery
-
-1. Back up `processed_data/`, `chroma_db/`, and `lightrag_index/`.
-2. Re-run PDF ingestion: extraction signatures change, so old page-sized checkpoints are regenerated into bounded chunks.
-3. Optionally re-run enrichment; old-version contexts are not reused.
-4. Re-run Chroma ingestion. Legacy manifests reindex once. Collection names now include an embedding-model signature; old collections are retained but are not queried by the new wrapper.
-5. Re-run graph ingestion. Legacy append-only graphs are retained; the new active graph lives under `lightrag_index/generations/<generation>/` and is selected by `current.json`.
-
-`RESET_LIGHTRAG_INDEX=1` requests a fresh generation; it no longer recursively deletes the existing graph. Keep enough disk space for a rebuild. After stopping/finalizing old readers, inspect the active pointer before manually removing obsolete generations/collections. Do not delete lock files during an active run.
-
-Corrupt checkpoints/manifests must be restored from a backup or deliberately moved aside before rebuilding. They are not silently treated as an empty corpus. For a failed Chroma ingestion, retry the same complete corpus; successful manifests skip completed PDFs. Wait for sync completion before querying if you require a consistent snapshot.
-
-## Dependency updates and branch automation
-
-Dependabot version-update PRs are disabled (`open-pull-requests-limit: 0` for pip and Actions). CI runs read-only on main pushes and PRs, uses pinned action commits, and audits core dependencies. Update dependencies deliberately, run checks, and refresh the pinned action SHAs after review.
-
-Dependabot security-update PRs are controlled by a separate repository setting. This session's GitHub integration returned HTTP 403 for that setting, so its status could not be verified or changed. If security-update branches still appear, the repository owner can disable **Dependabot security updates** under Settings → Advanced Security (or Code security, depending on GitHub UI). Vulnerability alerts can remain enabled.
-
-The optional notebook stack still has upstream advisories without fixed releases; see [the audit report](AUDIT-2026-10-02.md). Keep Chroma embedded/local, state/cache directories private, and evaluation text-only. Do not expose these dependencies as an untrusted multi-tenant service.
+Dependabot pip/Actions version PR limits remain zero. CI has only read permissions and cannot write branches. Automatic security updates are a separate GitHub setting: the integration previously returned HTTP 403, so it remains unverified. If those branches recur, the owner can change **Settings → Advanced Security → Dependabot → security updates**. Do not disable CI or advisories to stop version branches. Upgrade dependencies manually, audit resolved extras, run tests and merge only after `test-and-audit` passes.
