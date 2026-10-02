@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
+## [0.3.0] - 2026-10-02
+
+Breaking replacement of the split JSON/Chroma/LightRAG architecture with transactional SQLite FTS5 and optional pinned ONNX dense/reranking models. Removed vulnerable optional stack, graph rebuild/cleanup layers, redundant scripts/tests and obsolete plans. Original stores remain on disk for rollback; reingest source files using the new CLI/API.
+
+Added explicit indexed company/year/jurisdiction filters, TXT/MD/CSV/JSON/JSONL ingestion, bounded PDF worker, original locators/offsets, evidence-only answers, quote-checked optional generation, source-bound decimal calculations and independently labeled row/span evaluations. Models/reranking/generation remain opt-in. See operations, testing and research for measured results and limitations.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

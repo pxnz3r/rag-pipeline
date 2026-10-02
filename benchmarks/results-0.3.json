@@ -1,0 +1,407 @@
+{
+  "date": "2026-10-02",
+  "baseline_commit": "e217ae819ec40c834205a7344f6c6c91af8193f7",
+  "runtime": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "sqlite": "3.53.1",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "cpu_count": 3,
+    "packages": {
+      "numpy": "2.5.3",
+      "pypdf": "6.19.0",
+      "onnxruntime": "1.30.0",
+      "tokenizers": "0.23.2",
+      "huggingface-hub": "1.33.0",
+      "groq": "1.7.0",
+      "pytest": "9.1.1",
+      "ruff": "0.16.10"
+    },
+    "models_cpu_threads": 2,
+    "note": "Shared cloud worker; latency samples can vary with scheduling. No GPU or hosted generation used."
+  },
+  "physical_code_lines": {
+    "0.2": {
+      "src/rag_pipeline": 2023,
+      "tests": 1131,
+      "scripts": 319,
+      "notebook_code": 473,
+      "total": 3946
+    },
+    "0.3": {
+      "src/rag_pipeline": 1314,
+      "tests": 596,
+      "scripts": 238,
+      "notebook_code": 13,
+      "total": 2161
+    }
+  },
+  "method": "Non-reranked final comparisons run sequentially; reranked final uses batch8 and one repetition/query after one global warmup. Earlier baseline BM25 is only that route, never a comparison against the complete v0.2 model/graph/generation system. Model load excluded, index encoding included. Peak RSS profiler compares the same 40 legal windows; logits identical. Profiler latency was not measured under identical worker contention: interpret memory, not relative speed. No private corpus or generated-answer accuracy tested. Aggregate metrics/samples retained in Git; CLI evaluation outputs complete per-query rankings for inspection and reproduction.",
+  "results": {
+    "finqa-baseline": {
+      "baseline": "v0.2 BM25 retrieval route only; not its dense/reranked/generative pipeline",
+      "metadata_prefix": false,
+      "documents": 2465,
+      "retrieval": {
+        "queries": 98,
+        "k": 5,
+        "recall_at_k": 0.7091836734693877,
+        "precision_at_k": 0.21020408163265275,
+        "mrr_at_k": 0.7200680272108844,
+        "ndcg_at_k": 0.6628272075457183
+      },
+      "index_seconds": 0.02848954099954426,
+      "query_samples": 294,
+      "latency_ms": {
+        "median": 3.5968345000583213,
+        "p95": 5.945714350309567,
+        "max": 8.53991500025586
+      }
+    },
+    "finqa-baseline-metadata": {
+      "baseline": "v0.2 BM25 retrieval route only; not its dense/reranked/generative pipeline",
+      "metadata_prefix": true,
+      "documents": 2465,
+      "retrieval": {
+        "queries": 98,
+        "k": 5,
+        "recall_at_k": 0.6972789115646258,
+        "precision_at_k": 0.20816326530612217,
+        "mrr_at_k": 0.6972789115646261,
+        "ndcg_at_k": 0.6436071518237234
+      },
+      "index_seconds": 0.035839755000779405,
+      "query_samples": 294,
+      "latency_ms": {
+        "median": 3.855805000057444,
+        "p95": 6.374409050022221,
+        "max": 9.66398500077048
+      }
+    },
+    "finqa-lexical-final": {
+      "dataset": "finqa-test-row-proxy-100-seed42",
+      "source": "https://raw.githubusercontent.com/czyssrs/FinQA/0f16e2867befa6840783e58be38c9efb9229d742/dataset/test.json",
+      "source_sha256": "831dbfb2e785dbc227f895ce3f24046433467aec67b09db2bd6ac7692a8a30dc",
+      "skipped_query_ids": [
+        "AWK/2012/page_117.pdf-3",
+        "AMT/2014/page_160.pdf-4"
+      ],
+      "limitations": "100 seed-42 sampled test records, all text/table rows as competing documents. Gold row ids are original annotations. Uniform corpus formatting is independent of labels. Excludes questions with absent gold rows. Cross-page row retrieval proxy, NOT official FinQA numerical execution accuracy or full-test results. No question-specific metadata filters, training or relevance tuning.",
+      "mode": "lexical",
+      "embedding": null,
+      "reranker": null,
+      "split": null,
+      "documents": 2465,
+      "chunks": 2466,
+      "retrieval": {
+        "queries": 98,
+        "k": 5,
+        "recall_at_k": 0.6998299319727891,
+        "precision_at_k": 0.21020408163265278,
+        "mrr_at_k": 0.7132653061224489,
+        "ndcg_at_k": 0.6561442259965365
+      },
+      "span_retrieval": null,
+      "negative_queries": 0,
+      "negative_abstention_rate": null,
+      "index_seconds": 0.5732370040004753,
+      "query_samples": 294,
+      "latency_ms": {
+        "median": 1.2124340000809752,
+        "p95": 2.105345000245506,
+        "max": 5.794321999928798
+      }
+    },
+    "finqa-hybrid-final": {
+      "dataset": "finqa-test-row-proxy-100-seed42",
+      "source": "https://raw.githubusercontent.com/czyssrs/FinQA/0f16e2867befa6840783e58be38c9efb9229d742/dataset/test.json",
+      "source_sha256": "831dbfb2e785dbc227f895ce3f24046433467aec67b09db2bd6ac7692a8a30dc",
+      "skipped_query_ids": [
+        "AWK/2012/page_117.pdf-3",
+        "AMT/2014/page_160.pdf-4"
+      ],
+      "limitations": "100 seed-42 sampled test records, all text/table rows as competing documents. Gold row ids are original annotations. Uniform corpus formatting is independent of labels. Excludes questions with absent gold rows. Cross-page row retrieval proxy, NOT official FinQA numerical execution accuracy or full-test results. No question-specific metadata filters, training or relevance tuning.",
+      "mode": "hybrid",
+      "embedding": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx:mean:256:v1",
+      "reranker": null,
+      "split": null,
+      "documents": 2465,
+      "chunks": 2466,
+      "retrieval": {
+        "queries": 98,
+        "k": 5,
+        "recall_at_k": 0.7227891156462585,
+        "precision_at_k": 0.21020408163265278,
+        "mrr_at_k": 0.7554421768707484,
+        "ndcg_at_k": 0.6888433313988407
+      },
+      "span_retrieval": null,
+      "negative_queries": 0,
+      "negative_abstention_rate": null,
+      "index_seconds": 25.46702372100026,
+      "query_samples": 294,
+      "latency_ms": {
+        "median": 12.684204500146734,
+        "p95": 19.029845299701257,
+        "max": 28.614321000532073
+      }
+    },
+    "finqa-reranked-final": {
+      "dataset": "finqa-test-row-proxy-100-seed42",
+      "source": "https://raw.githubusercontent.com/czyssrs/FinQA/0f16e2867befa6840783e58be38c9efb9229d742/dataset/test.json",
+      "source_sha256": "831dbfb2e785dbc227f895ce3f24046433467aec67b09db2bd6ac7692a8a30dc",
+      "skipped_query_ids": [
+        "AWK/2012/page_117.pdf-3",
+        "AMT/2014/page_160.pdf-4"
+      ],
+      "limitations": "100 seed-42 sampled test records, all text/table rows as competing documents. Gold row ids are original annotations. Uniform corpus formatting is independent of labels. Excludes questions with absent gold rows. Cross-page row retrieval proxy, NOT official FinQA numerical execution accuracy or full-test results. No question-specific metadata filters, training or relevance tuning.",
+      "mode": "hybrid",
+      "embedding": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx:mean:256:v1",
+      "reranker": "cross-encoder/ms-marco-MiniLM-L6-v2@233902d25c440f23af6f7d6e94d2946bac0bee0a:onnx:logits:512:v1",
+      "split": null,
+      "documents": 2465,
+      "chunks": 2466,
+      "retrieval": {
+        "queries": 98,
+        "k": 5,
+        "recall_at_k": 0.7431972789115646,
+        "precision_at_k": 0.22040816326530588,
+        "mrr_at_k": 0.758843537414966,
+        "ndcg_at_k": 0.6968946003624225
+      },
+      "span_retrieval": null,
+      "negative_queries": 0,
+      "negative_abstention_rate": null,
+      "index_seconds": 21.562495909999598,
+      "query_samples": 98,
+      "latency_ms": {
+        "median": 662.005899000178,
+        "p95": 1033.5074847997473,
+        "max": 1224.0934589999597
+      }
+    },
+    "cuad-lexical-final": {
+      "dataset": "cuad-test-span-proxy-10-contracts-seed42",
+      "source": "https://raw.githubusercontent.com/TheAtticusProject/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip",
+      "source_sha256": "f8161d18bea4e9c05e78fa6dda61c19c846fb8087ea969c172753bc2f45b999a",
+      "skipped_query_ids": [],
+      "limitations": "All positive questions from 10 seed-42 sampled test contracts; no training/tuning. Original wording/text/spans. Explicit contract_id scope matches the original this-contract question context. Document recall is trivial under this filter: evaluate character recall/precision. No-answer clauses excluded; NOT official CUAD extraction F1 or full LegalBench-RAG results.",
+      "mode": "lexical",
+      "embedding": null,
+      "reranker": null,
+      "split": null,
+      "documents": 10,
+      "chunks": 762,
+      "retrieval": {
+        "queries": 134,
+        "k": 5,
+        "recall_at_k": 1.0,
+        "precision_at_k": 0.19999999999999954,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "span_retrieval": {
+        "queries": 134,
+        "character_recall": 0.5441983860523686,
+        "character_precision": 0.041189273991807135
+      },
+      "negative_queries": 0,
+      "negative_abstention_rate": null,
+      "index_seconds": 0.05043275900061417,
+      "query_samples": 402,
+      "latency_ms": {
+        "median": 2.9661730000043462,
+        "p95": 7.1674928503398405,
+        "max": 19.554966999749013
+      }
+    },
+    "cuad-hybrid-final": {
+      "dataset": "cuad-test-span-proxy-10-contracts-seed42",
+      "source": "https://raw.githubusercontent.com/TheAtticusProject/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip",
+      "source_sha256": "f8161d18bea4e9c05e78fa6dda61c19c846fb8087ea969c172753bc2f45b999a",
+      "skipped_query_ids": [],
+      "limitations": "All positive questions from 10 seed-42 sampled test contracts; no training/tuning. Original wording/text/spans. Explicit contract_id scope matches the original this-contract question context. Document recall is trivial under this filter: evaluate character recall/precision. No-answer clauses excluded; NOT official CUAD extraction F1 or full LegalBench-RAG results.",
+      "mode": "hybrid",
+      "embedding": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx:mean:256:v1",
+      "reranker": null,
+      "split": null,
+      "documents": 10,
+      "chunks": 762,
+      "retrieval": {
+        "queries": 134,
+        "k": 5,
+        "recall_at_k": 1.0,
+        "precision_at_k": 0.19999999999999954,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "span_retrieval": {
+        "queries": 134,
+        "character_recall": 0.6007294905458833,
+        "character_precision": 0.04830412781414718
+      },
+      "negative_queries": 0,
+      "negative_abstention_rate": null,
+      "index_seconds": 32.01832184700015,
+      "query_samples": 402,
+      "latency_ms": {
+        "median": 12.617543000033038,
+        "p95": 20.08346659995368,
+        "max": 33.5821210001086
+      }
+    },
+    "cuad-reranked-final": {
+      "dataset": "cuad-test-span-proxy-10-contracts-seed42",
+      "source": "https://raw.githubusercontent.com/TheAtticusProject/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip",
+      "source_sha256": "f8161d18bea4e9c05e78fa6dda61c19c846fb8087ea969c172753bc2f45b999a",
+      "skipped_query_ids": [],
+      "limitations": "All positive questions from 10 seed-42 sampled test contracts; no training/tuning. Original wording/text/spans. Explicit contract_id scope matches the original this-contract question context. Document recall is trivial under this filter: evaluate character recall/precision. No-answer clauses excluded; NOT official CUAD extraction F1 or full LegalBench-RAG results.",
+      "mode": "hybrid",
+      "embedding": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx:mean:256:v1",
+      "reranker": "cross-encoder/ms-marco-MiniLM-L6-v2@233902d25c440f23af6f7d6e94d2946bac0bee0a:onnx:logits:512:v1",
+      "split": null,
+      "documents": 10,
+      "chunks": 762,
+      "retrieval": {
+        "queries": 134,
+        "k": 5,
+        "recall_at_k": 1.0,
+        "precision_at_k": 0.19999999999999954,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "span_retrieval": {
+        "queries": 134,
+        "character_recall": 0.5334251323014021,
+        "character_precision": 0.03464278504540241
+      },
+      "negative_queries": 0,
+      "negative_abstention_rate": null,
+      "index_seconds": 32.21869006699944,
+      "query_samples": 134,
+      "latency_ms": {
+        "median": 1669.858460499654,
+        "p95": 2421.5800911504166,
+        "max": 3655.975243999819
+      }
+    },
+    "canary-final": {
+      "dataset": "domain-canary-v1",
+      "source": null,
+      "source_sha256": null,
+      "skipped_query_ids": [],
+      "limitations": "Small authored regression fixture, not a public benchmark or evidence of production/SOTA accuracy. Heldout labels frozen before v0.3 implementation; author is implementer. Filters are supplied explicitly by users, not inferred from questions.",
+      "mode": "lexical",
+      "embedding": null,
+      "reranker": null,
+      "split": "heldout",
+      "documents": 12,
+      "chunks": 12,
+      "retrieval": {
+        "queries": 12,
+        "k": 3,
+        "recall_at_k": 1.0,
+        "precision_at_k": 0.3333333333333333,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "span_retrieval": null,
+      "negative_queries": 3,
+      "negative_abstention_rate": 1.0,
+      "index_seconds": 0.004031899999972666,
+      "query_samples": 105,
+      "latency_ms": {
+        "median": 0.13416700039670104,
+        "p95": 0.19974479982920457,
+        "max": 22.568790999685007
+      }
+    },
+    "scale-final": {
+      "rows": 100000,
+      "ingest_seconds": 2.6217433149995486,
+      "unchanged_ingest_seconds": 0.006283957999585255,
+      "index_bytes": 36638720,
+      "queries": [
+        {
+          "match": "any",
+          "returned": 5,
+          "samples_ms": [
+            63.7228209998284,
+            64.5922170006088,
+            65.45582600028865,
+            64.14635300006921,
+            65.70907700006501,
+            66.20019900037732,
+            63.19372400048451
+          ],
+          "median_ms": 64.5922170006088,
+          "p95_ms": 66.05286240028363
+        },
+        {
+          "match": "all",
+          "returned": 1,
+          "samples_ms": [
+            2.724068999668816,
+            2.688778999981878,
+            2.710009000111313,
+            2.6843919995371834,
+            2.6904110000032233,
+            2.6971810002578422,
+            2.664663000359724
+          ],
+          "median_ms": 2.6904110000032233,
+          "p95_ms": 2.719850999801565
+        }
+      ],
+      "limitations": "Synthetic exact-account query; any matches every row and all matches only the target. Different result semantics, not an equivalent speed comparison. Disk/index pages exclude SQLite/model/native peak memory."
+    },
+    "large-baseline": {
+      "documents": 100000,
+      "build_seconds": 0.6191947620000064,
+      "query": "revenue 99123 (same rows as SQLite)",
+      "samples_ms": [
+        39.00016100033099,
+        38.811553999948956,
+        38.43852600039099,
+        38.649815999633574,
+        39.33629400034988,
+        39.502517999608244,
+        38.61804099960864
+      ],
+      "median_ms": 38.811553999948956,
+      "p95_ms": 39.452650799830735
+    },
+    "ranker-batch8": {
+      "batch": 8,
+      "pairs": 40,
+      "samples_ms": [
+        3023.5685640000156,
+        4208.102241000233,
+        4671.067856000263
+      ],
+      "peak_rss_kib": 418400
+    },
+    "ranker-batch32": {
+      "batch": 32,
+      "pairs": 40,
+      "samples_ms": [
+        2095.6403170002886,
+        2293.459944999995,
+        1977.4905059994126
+      ],
+      "peak_rss_kib": 851240
+    }
+  },
+  "installed_wheel_smoke": {
+    "wheel": "0.3.0",
+    "numpy_absent": true,
+    "core_commands": "ingest/search/ask/calculate/evaluate/status",
+    "status_process_ms": [
+      51.61608200069168,
+      51.09521600024891,
+      51.70596399966598,
+      50.509911000517604,
+      51.33242900046753
+    ],
+    "ok": true
+  }
+}

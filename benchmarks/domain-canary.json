@@ -1,0 +1,328 @@
+{
+  "name": "domain-canary-v1",
+  "license": "MIT (original synthetic fixtures)",
+  "limitations": "Small authored regression fixture, not a public benchmark or evidence of production/SOTA accuracy. Heldout labels frozen before v0.3 implementation; author is implementer. Filters are supplied explicitly by users, not inferred from questions.",
+  "documents": [
+    {
+      "id": "acme24",
+      "text": "Revenue was $125.0 million in 2024 and $100.0 million in 2023. Operating income was $20.0 million. The figures are in USD millions. Net cash provided by operating activities was $18.5 million.",
+      "metadata": {
+        "kind": "finance",
+        "company": "Acme",
+        "year": "2024",
+        "title": "Acme annual report 2024"
+      }
+    },
+    {
+      "id": "acme23",
+      "text": "Revenue was $100.0 million in 2023 and $90.0 million in 2022. Operating income was $12.0 million. The figures are in USD millions. Net cash provided by operating activities was $11.0 million.",
+      "metadata": {
+        "kind": "finance",
+        "company": "Acme",
+        "year": "2023",
+        "title": "Acme annual report 2023"
+      }
+    },
+    {
+      "id": "beta24",
+      "text": "Revenue was $780.0 million in 2024 and $710.0 million in 2023. Operating income was $45.0 million. Net cash provided by operating activities was $22.0 million.",
+      "metadata": {
+        "kind": "finance",
+        "company": "Beta",
+        "year": "2024",
+        "title": "Beta annual report 2024"
+      }
+    },
+    {
+      "id": "policy",
+      "text": "Revenue from services is recognized over time as performance obligations are satisfied. Customer advances are recorded as contract liabilities until services are delivered. Inventory is measured at the lower of cost and net realizable value.",
+      "metadata": {
+        "kind": "accounting",
+        "company": "Acme",
+        "year": "2024",
+        "title": "Revenue recognition policy"
+      }
+    },
+    {
+      "id": "lease",
+      "text": "The lessee records a right-of-use asset and a lease liability at commencement. Subsequent lease liability measurement reflects interest and payments. Short-term leases use the recognition exemption.",
+      "metadata": {
+        "kind": "accounting",
+        "company": "Acme",
+        "year": "2024",
+        "title": "Lease accounting"
+      }
+    },
+    {
+      "id": "assets",
+      "text": "Current assets: USD millions 2024=36.0; 2023=30.0. Current liabilities: USD millions 2024=18.0; 2023=15.0. Total assets were USD 210 million in 2024.",
+      "metadata": {
+        "kind": "accounting",
+        "company": "Acme",
+        "year": "2024",
+        "title": "Balance sheet"
+      }
+    },
+    {
+      "id": "ny",
+      "text": "The governing law is New York. Either party may terminate this agreement on thirty days written notice. Confidential information must be protected for three years after termination. Disputes are resolved by arbitration in Manhattan.",
+      "metadata": {
+        "kind": "legal",
+        "jurisdiction": "NY",
+        "title": "Supply agreement NY"
+      }
+    },
+    {
+      "id": "ca",
+      "text": "The governing law is California. Either party may terminate this agreement on sixty days written notice. Confidential information must be protected for five years after termination. Disputes are resolved in the courts of Los Angeles.",
+      "metadata": {
+        "kind": "legal",
+        "jurisdiction": "CA",
+        "title": "Supply agreement CA"
+      }
+    },
+    {
+      "id": "uk",
+      "text": "English law governs this agreement. Either party may terminate on ninety days written notice. Confidential information must be protected for two years after termination. The courts of London have exclusive jurisdiction.",
+      "metadata": {
+        "kind": "legal",
+        "jurisdiction": "UK",
+        "title": "Supply agreement UK"
+      }
+    },
+    {
+      "id": "exception",
+      "text": "A party is excused from performance during a force majeure event, except for obligations to pay amounts already due. Notice of the event must be provided within five business days. Economic hardship alone does not qualify.",
+      "metadata": {
+        "kind": "legal",
+        "jurisdiction": "NY",
+        "title": "Force majeure exception"
+      }
+    },
+    {
+      "id": "insurance",
+      "text": "Supplier must maintain commercial general liability insurance of USD 2 million per occurrence. Buyer must be named as an additional insured. Coverage must continue throughout the term.",
+      "metadata": {
+        "kind": "legal",
+        "jurisdiction": "NY",
+        "title": "Insurance covenant"
+      }
+    },
+    {
+      "id": "market",
+      "text": "Revenue growth across technology firms slowed during 2024. Interest rates and currency movements affected cash flows. This commentary contains no audited company accounts.",
+      "metadata": {
+        "kind": "finance",
+        "year": "2024",
+        "title": "Market commentary"
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "dev01",
+      "split": "development",
+      "question": "What was revenue in 2024?",
+      "filters": {
+        "company": "Acme",
+        "year": "2024"
+      },
+      "relevant": [
+        "acme24"
+      ]
+    },
+    {
+      "id": "dev02",
+      "split": "development",
+      "question": "When is service revenue recognized?",
+      "filters": {
+        "kind": "accounting"
+      },
+      "relevant": [
+        "policy"
+      ]
+    },
+    {
+      "id": "dev03",
+      "split": "development",
+      "question": "How many days written notice to terminate?",
+      "filters": {
+        "jurisdiction": "NY"
+      },
+      "relevant": [
+        "ny"
+      ]
+    },
+    {
+      "id": "dev04",
+      "split": "development",
+      "question": "What asset is recognized by a lessee?",
+      "filters": {
+        "kind": "accounting"
+      },
+      "relevant": [
+        "lease"
+      ]
+    },
+    {
+      "id": "test01",
+      "split": "heldout",
+      "question": "How much cash was provided by operating activities?",
+      "filters": {
+        "company": "Acme",
+        "year": "2024"
+      },
+      "relevant": [
+        "acme24"
+      ]
+    },
+    {
+      "id": "test02",
+      "split": "heldout",
+      "question": "What was operating income?",
+      "filters": {
+        "company": "Beta",
+        "year": "2024"
+      },
+      "relevant": [
+        "beta24"
+      ]
+    },
+    {
+      "id": "test03",
+      "split": "heldout",
+      "question": "How much revenue in 2023?",
+      "filters": {
+        "company": "Acme",
+        "year": "2023"
+      },
+      "relevant": [
+        "acme23"
+      ]
+    },
+    {
+      "id": "test04",
+      "split": "heldout",
+      "question": "How are customer advances recorded?",
+      "filters": {
+        "kind": "accounting"
+      },
+      "relevant": [
+        "policy"
+      ]
+    },
+    {
+      "id": "test05",
+      "split": "heldout",
+      "question": "What are current liabilities in 2024?",
+      "filters": {
+        "kind": "accounting"
+      },
+      "relevant": [
+        "assets"
+      ]
+    },
+    {
+      "id": "test06",
+      "split": "heldout",
+      "question": "How long does confidentiality survive termination?",
+      "filters": {
+        "jurisdiction": "CA"
+      },
+      "relevant": [
+        "ca"
+      ]
+    },
+    {
+      "id": "test07",
+      "split": "heldout",
+      "question": "Where must disputes be resolved?",
+      "filters": {
+        "jurisdiction": "NY"
+      },
+      "relevant": [
+        "ny"
+      ]
+    },
+    {
+      "id": "test08",
+      "split": "heldout",
+      "question": "Which obligations are excluded from force majeure relief?",
+      "filters": {
+        "jurisdiction": "NY"
+      },
+      "relevant": [
+        "exception"
+      ]
+    },
+    {
+      "id": "test09",
+      "split": "heldout",
+      "question": "What is the liability insurance coverage per occurrence?",
+      "filters": {
+        "jurisdiction": "NY"
+      },
+      "relevant": [
+        "insurance"
+      ]
+    },
+    {
+      "id": "test10",
+      "split": "heldout",
+      "question": "Which courts have exclusive jurisdiction?",
+      "filters": {
+        "jurisdiction": "UK"
+      },
+      "relevant": [
+        "uk"
+      ]
+    },
+    {
+      "id": "test11",
+      "split": "heldout",
+      "question": "How is inventory measured?",
+      "filters": {
+        "kind": "accounting"
+      },
+      "relevant": [
+        "policy"
+      ]
+    },
+    {
+      "id": "test12",
+      "split": "heldout",
+      "question": "Which leases use the recognition exemption?",
+      "filters": {
+        "kind": "accounting"
+      },
+      "relevant": [
+        "lease"
+      ]
+    },
+    {
+      "id": "neg01",
+      "split": "heldout",
+      "question": "What was revenue?",
+      "filters": {
+        "company": "Missing Company"
+      },
+      "relevant": []
+    },
+    {
+      "id": "neg02",
+      "split": "heldout",
+      "question": "What is the termination notice?",
+      "filters": {
+        "jurisdiction": "DE"
+      },
+      "relevant": []
+    },
+    {
+      "id": "neg03",
+      "split": "heldout",
+      "question": "zzzxylophone undisclosedplanet",
+      "filters": {},
+      "relevant": []
+    }
+  ]
+}

@@ -1,42 +1,15 @@
-# Contributing Guide
-
-Thanks for contributing to `rag-pipeline`.
-
-## Development Setup
+# Contributing
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m pip install -e .
+pip install -e . -r requirements-dev.txt
+ruff check src scripts tests
+ruff format --check src scripts tests
+pytest
+pip-audit --local
 ```
 
-## Local Checks
+Core tests use real SQLite/files/subprocesses and run offline on Python 3.10/3.12. Notebook schema and code are covered in the suite. Install `.[models,generation]` and use `RAG_TEST_MODELS=1 pytest` for pinned CPU model integration; audit that resolved environment too.
 
-Run all checks before opening a PR:
+Keep extraction, retrieval and answer policy in the package. The notebook only calls installed APIs. Preserve exact source provenance and transaction rollback; add boundary regressions for changed behavior. Record independent relevance judgments before tuning and disclose all benchmark scope, exclusions and failures. Avoid redundant wrapper/mocked adapter tests when a small real-storage case verifies the behavior.
 
-```bash
-rag-pipeline test
-rag-pipeline validate-notebook Python3finale.ipynb
-rag-pipeline audit-notebook Python3finale.ipynb
-rag-pipeline smoke
-```
-
-## Branch and Commit Expectations
-
-- Keep PRs focused and small.
-- Use clear commit messages (conventional commits preferred).
-- Add or update tests for behavior changes.
-- Update docs for user-facing or operational changes.
-
-## Notebook + Package Rule
-
-- Keep orchestration in `Python3finale.ipynb`.
-- Keep business logic in `src/rag_pipeline`.
-- Add tests under `tests/` for package logic and wrapper behavior.
-
-## Pull Request Checklist
-
-- [ ] Tests pass locally.
-- [ ] Notebook validation passes.
-- [ ] Pattern audit passes.
-- [ ] Smoke check passes.
-- [ ] Documentation updated (if needed).
+PRs must include validation and migration notes for API changes. CI uses read permissions and the protected branch requires `test-and-audit`; do not add unsolicited branch-writing automation.

@@ -1,71 +1,173 @@
+"""Reproducible retrieval evaluation using independent, explicit judgments."""
+
 from __future__ import annotations
 
+import json
+import tempfile
+import time
+from pathlib import Path
+from statistics import mean, median
 
-def generate_test_dataset():
-    questions = [
-        "What is the formula for the Sharpe Ratio?",
-        "How is RSI (Relative Strength Index) calculated?",
-        "Explain the difference between SMA and EMA.",
-        "What does a Doji candlestick pattern indicate?",
-        "Define Alpha in the context of trading.",
-        "What is the primary function of Bollinger Bands?",
-        "Explain the concept of mean reversion.",
-        "What is implied volatility?",
-        "Describe the MACD indicator components.",
-        "What is a stop-loss order?",
-        "Compare trend following strategies with mean reversion strategies.",
-        "How does Fundamental Analysis differ from Technical Analysis?",
-        "Contrast day trading with swing trading timeframes.",
-        "Explain the risk differences between buying options vs selling options.",
-        "Compare the efficient market hypothesis with behavioral finance theories.",
-        "How does portfolio diversification reduce risk according to Modern Portfolio Theory?",
-        "Difference between futures and forwards contracts.",
-        "Compare discretionary trading vs algorithmic trading.",
-        "How does volume analysis confirm price trends?",
-        "Contrast growth investing with value investing.",
-        "What is a typical annual volatility target for a balanced portfolio?",
-        "What is the Kelly Criterion formula?",
-        "How many standard deviations does a 2-sigma event represent?",
-        "What is the standard period setting for RSI?",
-        "How is market capitalization calculated?",
-        "What is the delta of an at-the-money option roughly?",
-        "What is the rule of 72?",
-        "Typical leverage offered in forex trading?",
-        "What constitutes a 'Golden Cross'?",
-        "What is the VIX index measuring?",
-    ]
-    ground_truths = [
-        "The Sharpe Ratio is (Rp - Rf) / sigma_p, measuring risk-adjusted returns.",
-        "RSI is calculated as 100 - (100 / (1 + RS)), where RS is Average Gain / Average Loss.",
-        "SMA gives equal weight to all prices, while EMA places more weight on recent data.",
-        "A Doji indicates indecision in the market, where the open and close prices are virtually equal.",
-        "Alpha represents the excess return of an investment relative to the return of a benchmark index.",
-        "Bollinger Bands measure market volatility using standard deviation bands plotted around a moving average.",
-        "Mean reversion is the theory that asset prices and historical returns eventually return to the long-run mean or average level.",
-        "Implied volatility represents the market's view of the likelihood of changes in a given security's price.",
-        "MACD consists of the MACD line (difference between two EMAs), the Signal line (EMA of MACD), and the Histogram.",
-        "A stop-loss order is an order placed with a broker to buy or sell once the stock reaches a certain price.",
-        "Trend following seeks to capitalize on momentum in a specific direction, while mean reversion bets that prices will return to an average.",
-        "Fundamental analysis evaluates a security's intrinsic value by examining related economic and financial factors, whereas technical analysis focuses on statistical trends gathered from trading activity.",
-        "Day trading involves buying and selling within the same trading day, while swing trading involves holding positions for days or weeks.",
-        "Buying options offers limited risk (premium paid), while selling options (naked) carries theoretically unlimited risk.",
-        "The Efficient Market Hypothesis states that asset prices reflect all available information, while behavioral finance argues that cognitive biases cause investors to act irrationally.",
-        "Modern Portfolio Theory suggests that diversifying across assets with low correlation reduces the overall variance (risk) of the portfolio.",
-        "Futures are standardized contracts traded on an exchange, while forwards are customizable private agreements traded over-the-counter (OTC).",
-        "Discretionary trading relies on human decision-making and intuition, whereas algorithmic trading uses computer programs to follow a defined set of instructions.",
-        "Rising volume is often used to confirm the strength of a price trend; increasing volume on an uptrend suggests strong buying interest.",
-        "Growth investing focuses on companies expected to grow at an above-average rate, while value investing targets stocks believed to be undervalued by the market.",
-        "A typical annual volatility target for a balanced portfolio is often cited around 10-15%.",
-        "The Kelly Criterion formula is f* = (bp - q) / b, used to determine the optimal size of a series of bets.",
-        "A 2-sigma event represents a move of two standard deviations from the mean, encompassing approximately 95% of occurrences in a normal distribution.",
-        "The standard period setting for RSI is typically 14 periods.",
-        "Market capitalization is calculated by multiplying the current share price by the total number of outstanding shares.",
-        "The delta of an at-the-money option is roughly 0.5.",
-        "The Rule of 72 is a shortcut to estimate the number of years required to double your money at a given annual rate of return, calculated as 72 / Interest Rate.",
-        "Forex trading typically offers leverage of 50:1 or higher.",
-        "A 'Golden Cross' occurs when a short-term moving average (e.g., 50-day) crosses above a long-term moving average (e.g., 200-day).",
-        "The VIX index measures the stock market's expectation of volatility based on S&P 500 index options.",
-    ]
-    if len(questions) != len(ground_truths):
-        raise ValueError("QA Dataset Mismatch")
-    return {"questions": questions, "ground_truths": ground_truths}
+from .index import Index
+from .retrieval_metrics import evaluate_rankings
+
+
+def _percentile(samples, fraction):
+    values = sorted(samples)
+    position = (len(values) - 1) * fraction
+    lower = int(position)
+    return values[lower] + (values[min(lower + 1, len(values) - 1)] - values[lower]) * (
+        position - lower
+    )
+
+
+def _union(intervals):
+    merged = []
+    for start, end in sorted(intervals):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def span_metrics(predicted, relevant):
+    """Character coverage with overlap counted once; same-document intersections."""
+    docs = {s["document"] for s in predicted + relevant}
+    retrieved = labeled = overlap = 0
+    for doc in docs:
+        found = _union(
+            [(s["start"], s["end"]) for s in predicted if s["document"] == doc]
+        )
+        gold = _union(
+            [(s["start"], s["end"]) for s in relevant if s["document"] == doc]
+        )
+        retrieved += sum(b - a for a, b in found)
+        labeled += sum(b - a for a, b in gold)
+        overlap += sum(max(0, min(b, d) - max(a, c)) for a, b in found for c, d in gold)
+    if not labeled:
+        raise ValueError("Span evaluation requires positive relevance spans")
+    return {
+        "character_recall": overlap / labeled,
+        "character_precision": overlap / retrieved if retrieved else 0,
+        "retrieved_chars": retrieved,
+        "relevant_chars": labeled,
+    }
+
+
+def evaluate(
+    dataset: str | Path,
+    *,
+    mode="lexical",
+    embedder=None,
+    k=5,
+    repeats=3,
+    split=None,
+    reranker=None,
+):
+    if not 1 <= repeats <= 100:
+        raise ValueError("Repeats must be between 1 and 100")
+    data = json.loads(Path(dataset).read_text(encoding="utf-8"))
+    docs, queries = data["documents"], data["queries"]
+    if len({d["id"] for d in docs}) != len(docs) or len(
+        {q["id"] for q in queries}
+    ) != len(queries):
+        raise ValueError("Duplicate document or query ids")
+    known = {d["id"] for d in docs}
+    lengths = {d["id"]: len(d["text"]) for d in docs}
+    for query in queries:
+        for span in query.get("spans", []):
+            if (
+                span["document"] not in lengths
+                or not 0 <= span["start"] < span["end"] <= lengths[span["document"]]
+            ):
+                raise ValueError("Invalid annotated source span")
+    if any(not set(q["relevant"]) <= known for q in queries):
+        raise ValueError("Unknown relevance id")
+    queries = [q for q in queries if split is None or q.get("split") == split]
+    if not queries:
+        raise ValueError("No evaluation queries selected")
+    with tempfile.TemporaryDirectory(prefix="rag-eval-") as directory:
+        root = Path(directory)
+        corpus = root / "corpus"
+        corpus.mkdir()
+        filenames = {}
+        for i, doc in enumerate(docs):
+            filename = f"{i:08d}.txt"
+            filenames[filename] = doc["id"]
+            (corpus / filename).write_text(doc["text"], encoding="utf-8")
+            (corpus / (filename + ".meta.json")).write_text(
+                json.dumps(doc.get("metadata", {}))
+            )
+        with Index(root / "index.sqlite", embedder, reranker) as index:
+            started = time.perf_counter()
+            stats = index.ingest(corpus)
+            index_seconds = time.perf_counter() - started
+            rankings, samples, negative_correct, spans = {}, [], 0, []
+            # One global warm-up; model loading is external, index encoding included.
+            first = queries[0]
+            index.search(
+                first["question"], filters=first.get("filters"), mode=mode, k=k
+            )
+            for query in queries:
+                for _ in range(repeats):
+                    started = time.perf_counter()
+                    hits = index.search(
+                        query["question"], filters=query.get("filters"), mode=mode, k=k
+                    )
+                    samples.append((time.perf_counter() - started) * 1000)
+                # Judgment unit is document, not chunk: deduplicate explicitly.
+                ranking = list(dict.fromkeys(filenames[h.document] for h in hits))
+                rankings[query["id"]] = ranking
+                negative_correct += not query["relevant"] and not ranking
+                if query.get("spans"):
+                    spans.append(
+                        span_metrics(
+                            [
+                                {
+                                    "document": filenames[h.document],
+                                    "start": h.start,
+                                    "end": h.end,
+                                }
+                                for h in hits
+                            ],
+                            query["spans"],
+                        )
+                    )
+            qrels = {q["id"]: set(q["relevant"]) for q in queries if q["relevant"]}
+            negatives = sum(not q["relevant"] for q in queries)
+            return {
+                "dataset": data.get("name", str(dataset)),
+                "source": data.get("source"),
+                "source_sha256": data.get("source_sha256"),
+                "skipped_query_ids": data.get("skipped_query_ids", []),
+                "limitations": data.get("limitations"),
+                "mode": mode,
+                "embedding": stats["embedding"],
+                "reranker": getattr(reranker, "signature", None),
+                "split": split,
+                "documents": len(docs),
+                "chunks": stats["chunks"],
+                "retrieval": evaluate_rankings(rankings, qrels, k) if qrels else None,
+                "span_retrieval": {
+                    "queries": len(spans),
+                    **{
+                        metric: mean(s[metric] for s in spans)
+                        for metric in ("character_recall", "character_precision")
+                    },
+                }
+                if spans
+                else None,
+                "negative_queries": negatives,
+                "negative_abstention_rate": negative_correct / negatives
+                if negatives
+                else None,
+                "index_seconds": index_seconds,
+                "query_samples": len(samples),
+                "latency_ms": {
+                    "median": median(samples),
+                    "p95": _percentile(samples, 0.95),
+                    "max": max(samples),
+                },
+                "rankings": rankings,
+            }
