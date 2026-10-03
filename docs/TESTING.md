@@ -1,61 +1,89 @@
-# Tests and measured retrieval
+# Tests and measured retrieval — 0.4
 
-Install `pip install -e . -r requirements-dev.txt`; run `ruff check src scripts tests`, `ruff format --check src scripts tests`, `pytest` and `pip-audit --local`. **44 passed, one model test skipped** in core mode; **45 passed** with `RAG_TEST_MODELS=1` on Python 3.10 and 3.12. The opt-in test loads both actual pinned CPU models. CI audits core and optional model/generation environments and preserves the required `test-and-audit` check. Both local resolved environments report no known advisories; the report is [dependency-audit-0.3.json](dependency-audit-0.3.json), not a proof of source-code security.
+**93 tests pass with actual pinned models on both Python 3.10 and 3.12.** Core mode skips the one model integration test, which exercises MiniLM, E5, CrossEncoder, ColBERT and ModernColBERT. Both resolved environments have no known dependency advisories. Boundary tests cover atomic migrations/rollback, WAL readers, corrupt caches, scope enforcement, bounded navigation/planner calls, embedding HTTP responses, exact citations/arithmetic and number/unit swaps. The wheel is exercised outside the checkout without NumPy. These checks do not prove every defect absent. Research features add code; the historical 0.3 line-count reduction is not a 0.4 reduction claim.
 
-The lean suite covers real persistent FTS/vector storage, whole-ingest rollback, WAL reader snapshots, corruption, source collisions/removal, indexed scope and injection-shaped filters, model signatures, invalid vectors/rerank scores, bounded context, actual PDF subprocess parsing, table labels, decimal fidelity, exact citations, forged numerical/currency/scale claims, no-evidence behavior, installed commands and notebook schema/code. The wheel was also installed separately and exercised outside the checkout, including a core environment **without NumPy**. Source distributions include the notebook/canary needed by their tests.
+## Fixed independent comparisons
 
-Physical Python + notebook code lines: **3,946 → 2,294 (42% fewer)**. Runtime modules: 20 → 9; test lines: 1,131 → 663; notebook code: 473 → 13. Counts include comments/blank lines, exclude docs/data/generated files and do not rely on minification. Tests of retired adapters were replaced by real boundary cases rather than keeping duplicate mocks.
+Reference: main commit `0545897d3b0871046018e7eb86d7240f58d04ed6`. Same prepared corpora and labels, 40 candidate chunks, five returned windows, three timed repetitions after one global warm-up. Window-overlap suppression changes surviving windows, not labels. Some model indexing/queries shared a worker: observed timings are **not matched universal speedups**. CPU quota is two equivalents, approximately 9.7 GiB RAM, no GPU.
 
-## Finance retrieval proxy
-
-FinQA official test data: 100 records sampled with seed 42, **2,465 competing text/table rows**, 98 usable questions (two have missing gold rows, listed in the artifact). Uniform row rendering is independent of gold snippets. Gold row IDs come from the original annotations; no per-question company/year filter or tuning is used. This is cross-page row retrieval, **not FinQA execution accuracy or a full benchmark result**.
+FinQA: 100 seed-42 sampled test records, 2,465 competing text/table rows, 98 usable queries; two missing-gold cases disclosed in the artifact. No company/year scope supplied. **Row retrieval, not FinQA arithmetic execution or answer accuracy.**
 
 | Route | Recall@5 | MRR@5 | Median / p95 query ms |
 | --- | ---: | ---: | ---: |
-| 0.2 BM25 route, raw text | 70.92% | 0.720 | 3.60 / 5.95 |
-| 0.2 BM25 with same metadata prefix | 69.73% | 0.697 | 3.86 / 6.37 |
-| 0.3 FTS lexical | 69.98% | 0.713 | 1.05 / 1.78 |
-| 0.3 hybrid MiniLM + FTS + RRF | 72.28% | 0.755 | 13.10 / 18.83 |
-| 0.3 hybrid + cross-encoder | 74.32% | 0.759 | 662.01 / 1,033.51 |
+| 0.3 lexical | 69.98% | 0.713 | 1.10 / 1.83 |
+| 0.4 lexical | 69.98% | 0.713 | 1.05 / 1.79 |
+| 0.4 MiniLM hybrid | 72.28% | 0.755 | 6.59 / 9.16 |
+| 0.4 E5 hybrid | 72.79% | 0.767 | 5.80 / 7.93 |
+| Lexical + cached ColBERT | 76.02% | 0.760 | 20.68 / 58.67 |
+| Hybrid + cached ColBERT | 75.51% | 0.758 | 28.52 / 67.58 |
+| Lexical + cached ModernColBERT | 77.30% | 0.748 | 111.09 / 199.35 |
+| Hybrid + cached ModernColBERT | 77.04% | 0.740 | 191.43 / 297.80 |
+| Qwen3-Embedding-0.6B Q8_0 hybrid | 76.19% | 0.779 | 583.89 / 766.85 |
 
-The old baseline is only its BM25 route, not the complete previous dense/graph/reranked/generative system. Lexical alone slightly reduces recall versus raw old BM25; hybrid improves it with additional CPU/index cost. Reranking's small gain does not justify making it mandatory. Index times are about 0.49 seconds lexical and 22.80 seconds hybrid; model loading/downloading is excluded.
+Qwen uses official pinned GGUF through pinned llama.cpp, last-token pooling, instruction-prefixed queries, one CPU inference thread. Indexing took 2,648 seconds under contention. It is a contemporary baseline, not an automatic CPU default. ModernColBERT trades higher recall for lower MRR and more latency than ColBERT-small. All remain explicit options.
 
-## Legal character-span proxy
+Paired bootstrap, 10,000 question resamples, seed 20261003: lexical+ColBERT versus lexical improves recall **6.04 percentage points**, percentile 95% CI **[0.26, 12.41]**. Versus MiniLM hybrid: **3.74 points**, CI **[-0.85, 8.67]**. The latter does not establish a reliable gain on this small slice; no multiplicity-corrected significance or SOTA claim.
 
-CUAD official test slice: **10 seed-42 sampled complete contracts, 134 positive questions, 762 chunks**. Original wording/text/expert character spans are preserved. Explicit contract scope matches the dataset's “this contract” question. Document recall is trivial under that scope, so report **macro character coverage** on the union of returned context instead. No-answer clauses are excluded; this is not official CUAD extraction F1 or full LegalBench-RAG.
+CUAD: 10 seed-42 complete contracts, 134 positive questions, 762 chunks. Contract scope follows the original task. Document recall is trivial; measure macro character coverage/precision. Negative clauses excluded; **not official CUAD extraction F1 or full LegalBench-RAG**.
 
-| Route | Character recall | Character precision | Median / p95 query ms |
-| --- | ---: | ---: | ---: |
-| FTS lexical | 54.42% | 4.12% | 2.28 / 3.72 |
-| Hybrid | **60.07%** | **4.83%** | 13.43 / 20.83 |
-| Hybrid + cross-encoder | 53.34% | 3.46% | 1,669.86 / 2,421.58 |
+| Route | Character recall | Character precision |
+| --- | ---: | ---: |
+| 0.3 lexical | 54.42% | 4.12% |
+| 0.4 lexical | 55.99% | 3.59% |
+| 0.3 MiniLM hybrid | 60.07% | 4.83% |
+| 0.4 MiniLM hybrid | 63.62% | 4.19% |
+| 0.4 E5 hybrid | 59.73% | 4.29% |
+| Lexical + cached ColBERT | 52.87% | 3.27% |
+| Hybrid + cached ColBERT | 53.26% | 3.23% |
 
-The general MS MARCO reranker **hurts legal retrieval** here. Leave it off for this domain. Low character precision exposes excess surrounding evidence; further legal-specific models/window calibration require a larger independent corpus. Current chunk/context/model defaults were frozen before these labels were evaluated. Rerank batch 8 vs 32 used about **409 vs 831 MiB** peak process RSS on the same 40 legal windows, with identical logits. Profile timing ran under different contention and is not a speed comparison.
+Diverse windows improve coverage but reduce precision. **ColBERT and E5 regress legal coverage here.** Retain MiniLM hybrid; general ranking scores do not establish legal completeness. The previous MS MARCO cross-encoder also regressed this slice.
 
-## Scope regression and scale
+SciFact: all 5,183 abstracts and 300 test queries, binary positive judgments. Biomedical retrieval is not clinical answer accuracy or support/refutation. Five-window recall: lexical **73.37% → 75.21%**, MiniLM hybrid **75.72% → 78.92%**, hybrid+ColBERT **79.43%**. Late interaction mainly improves ranking.
 
-The authored canary has 12 positive heldout queries plus three negative scope/unknown-term cases; recall@3 and negative abstention are 100%. It is deliberately small, author-labeled, and not independent production evidence. It does not establish general unanswerable-question calibration.
+## Separate document-ranking protocol
 
-A real **100,000-row CSV** ingested into about 35 MiB of SQLite pages in **2.59 s**; unchanged ingest took **6.82 ms**. Broad `revenue 99123` with any-term matching took median/p95 **66.26/67.34 ms**, compared with old in-memory BM25 **38.81/39.45 ms**. The selective all-term lookup returned only the correct account in **2.91/3.18 ms**. These query modes have different result semantics, so do not advertise their latency ratio as an equivalent speedup. SQLite buys durable transactions/bounded memory, not universal lower latency. Dense scans remain linear and were not benchmarked at 100k vectors.
+For BEIR-style comparison, explicit `--distinct-documents -k 10` returns ten different source documents. This is a separate protocol, not replacement of five-window results; still a fixed 40-chunk pool, not full PLAID retrieval.
 
-A 2.45-million-character Unicode book query now returns bounded SQL windows rather than copying complete sections for candidates. Python query-heap peak fell from **395.7 MB in the unmerged draft to 121 KB** with identical 8,541 returned characters. This is a query-allocation profile, not total process/native/corpus memory. Corrupt/missing schema is rejected rather than silently recreating an empty FTS index; NUL-containing text is rejected because SQLite text-window semantics would truncate it.
+| SciFact route | Document recall@10 | NDCG@10 |
+| --- | ---: | ---: |
+| Lexical | 80.73% | 0.6815 |
+| MiniLM hybrid | 85.26% | 0.7183 |
+| Lexical + ColBERT | 83.84% | 0.7284 |
+| Hybrid + ColBERT | 85.12% | 0.7402 |
 
-Embedding batches now cross CSV rows/PDF pages within a changed document. With the same warm CPU MiniLM, a 2,000-row CSV took median **6.99 s**, versus **10.63 s** for the per-section draft (three fresh-index repetitions each). Normalized vectors agree within 1e-5 and exact-account lookup agrees. This is an ingestion ablation, not a new retrieval-quality score. The reference is commit `aace9b8e243c4e5a1ee5d6f61cd5df8a18f9fde6`; the artifact specifies the CSV recipe. Inaccessible source directories now fail without pruning the existing corpus; the permission-denial regression uses actual POSIX permissions.
+No SOTA claim: model cards use different index/retrieval protocols. Forty-chunk candidate gold coverage is 87.96% lexical / 92.13% hybrid on SciFact, 84.78% / 86.90% on FinQA. Reranking cannot recover missing candidates.
+
+## Context, caching and scale diagnostics
+
+Company/year from the original FinQA input report raises lexical recall to 79.34%, hybrid to 80.36%. This **different known-input-scope protocol** is not an unscoped model gain. Never derive filters from gold evidence.
+
+The six-domain authored heading fixture improves evidence coverage@1 from 33.33% to 100%. It verifies heading preservation, not independent medical/accounting/trading/code quality. Navigation/source ordering/planner callbacks have boundary tests; **no end-to-end agent or long-context answer benchmark was run**. Infrastructure does not reproduce a trained research policy.
+
+Float32 token caching preserves the observed uncached SciFact ranking metrics. ColBERT token payloads alone: FinQA 28.4 MB, SciFact 605.8 MB, CUAD 40.4 MB; ModernColBERT FinQA 42.9 MB. SQLite overhead/model memory are additional; offline encoding costs recorded separately. This is reranking storage, not compressed ANN/PLAID.
+
+Sequential idle-worker synthetic scan ablation: 10,000 vectors, dimension 384, identical generated vectors/query/top-five IDs and scores, one BLAS thread, nine measured repeats. Warm median **21.49 ms in 0.3 → 1.08 ms in 0.4**, fitting the bounded 64 MiB matrix cache. This isolates storage/selection, not inference/accuracy or 100k-vector scaling. Exact search remains linear; filtered/over-budget indexes stream.
+
+Fresh 100,000-row CSV: ingest 2.48 seconds, unchanged ingest 7.05 ms. Broad any-term search median/p95 62.50/62.74 ms; selective all-term 2.69/2.72 ms. Different semantics; not an equivalent speedup or dense-scale benchmark.
 
 ## Reproduce
 
 ```bash
 pip install -e '.[models]' -r requirements-dev.txt
+ruff check .
+ruff format --check .
+pytest
+RAG_TEST_MODELS=1 pytest
+pip-audit --local
 python scripts/prepare_finqa.py /tmp/finqa-proxy.json
 python scripts/prepare_cuad.py /tmp/cuad-proxy.json
-rag-pipeline evaluate /tmp/finqa-proxy.json -k 5 --repeats 3
-rag-pipeline --dense evaluate /tmp/finqa-proxy.json --mode hybrid -k 5 --repeats 3
-rag-pipeline --dense --rerank evaluate /tmp/finqa-proxy.json --mode hybrid -k 5 --repeats 1
-rag-pipeline --dense evaluate /tmp/cuad-proxy.json --mode hybrid -k 5 --repeats 3
-rag-pipeline evaluate benchmarks/domain-canary.json --split heldout -k 3 --repeats 7
+python scripts/prepare_scifact.py /tmp/scifact.json
+rag-pipeline --dense evaluate /tmp/finqa-proxy.json --mode hybrid -k 5 --repeats 3 --output /tmp/hybrid.json
+rag-pipeline --reranker colbert evaluate /tmp/finqa-proxy.json --mode lexical --cache-reranker -k 5 --repeats 3 --output /tmp/colbert.json
+rag-pipeline --dense --reranker colbert evaluate /tmp/scifact.json --mode hybrid --cache-reranker --distinct-documents -k 10 --repeats 3
+python scripts/compare_results.py /tmp/finqa-proxy.json /tmp/hybrid.json /tmp/colbert.json -k 5
+rag-pipeline evaluate benchmarks/context-canary.json --contextual -k 1
+OPENBLAS_NUM_THREADS=1 python scripts/benchmark_dense.py --rows 10000 --repeats 9
 python scripts/benchmark_scale.py --rows 100000 --repeats 7
 ```
 
-Preparation scripts pin upstream revisions, disclose transformations/exclusions and record SHA-256 provenance. FinQA is MIT (included notice); CUAD is CC BY 4.0 (attributed in its script). Raw external corpora stay outside the repository. Run each route sequentially for comparable timings. One global warm-up is excluded; standard routes have three measured repetitions per question, reranking one due to cost. Standard timings were refreshed after bounded SQL windows; the unchanged reranker passage inputs retain the prior batch-8 pilot timings. Shared-worker scheduling affects timing; generated answers, private books and end-to-end hosted service latency were not measured.
-
-[Full metrics, runtime, samples and scope](../benchmarks/results-0.3.json). Previous `latest.json`/`scale-100k.json` artifacts describe historical 0.2 helper benchmarks, not this implementation.
+Run routes sequentially for comparable timing. Preparation scripts pin sources/checksums, disclose exclusions and licenses: FinQA MIT, CUAD CC BY 4.0, SciFact abstract/claim licensing in its script. External corpora remain outside the repository. [Results, provenance, intervals and per-query rankings](../benchmarks/results-0.4.json) preserve regressions/costs. [Research review](RETRIEVAL-LANDSCAPE.md) explains why headline answer scores cannot substitute for retrieval metrics.

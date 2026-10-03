@@ -1,6 +1,6 @@
 """Evidence-first local retrieval. Public APIs are loaded lazily for PDF workers."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "Index",
     "Hit",
@@ -9,10 +9,15 @@ __all__ = [
     "answer",
     "calculate",
     "evaluate_rankings",
+    "Navigation",
 ]
 
 
 def __getattr__(name):
+    if name == "Navigation":
+        from .navigation import Navigation
+
+        return Navigation
     if name in {"Index", "Hit"}:
         from . import index
 
