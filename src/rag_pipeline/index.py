@@ -8,6 +8,7 @@ import math
 import os
 import re
 import sqlite3
+import tempfile
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -224,50 +225,137 @@ class Index:
                 paths.append(path)
         paths.sort()
         signature = getattr(self.embedder, "signature", "")
-        pipeline = json.dumps(["extract-v3", size, overlap, signature, contextual])
-        with self._transaction(write=True):
-            if contextual:
-                self.db.execute("""CREATE TABLE IF NOT EXISTS heading_nodes(
-                    id TEXT PRIMARY KEY, section INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
-                    parent TEXT REFERENCES heading_nodes(id) ON DELETE CASCADE,
-                    start INTEGER NOT NULL,end INTEGER NOT NULL,level INTEGER NOT NULL,title TEXT NOT NULL)""")
-                self.db.execute(
-                    "CREATE INDEX IF NOT EXISTS heading_section ON heading_nodes(section,parent,start)"
-                )
-            self._dense_cache = None
+        pipeline = json.dumps(["extract-v4", size, overlap, signature, contextual])
+        if self.db.in_transaction:
+            raise ValueError("Ingest cannot run inside another transaction")
+        with self._transaction():
+            expected = (
+                self._state("generation"),
+                self._state("pipeline"),
+                self._state("embedding"),
+                self.db.execute("PRAGMA data_version").fetchone()[0],
+                self.db.total_changes,
+            )
             if self._state("embedding") and not self.embedder:
                 raise ValueError(
                     "This index has vectors; supply the same embedder to ingest"
                 )
             rebuild = self._state("pipeline") != pipeline
-            if self._state("embedding") != signature:
-                self.db.execute("DELETE FROM state WHERE key='dimension'")
             existing = dict(self.db.execute("SELECT id,fingerprint FROM documents"))
-            seen, changed = set(), 0
-            batch = []
-            for path in paths:
-                doc_id = path.relative_to(root).as_posix()
-                doc = document(path, root, None if rebuild else existing.get(doc_id))
-                seen.add(doc.id)
-                if not rebuild and existing.get(doc.id) == doc.fingerprint:
-                    continue
-                self._replace(doc, size, overlap, contextual, batch)
-                changed += 1
-            self._insert_chunks(batch)
-            removed = existing.keys() - seen
-            self.db.executemany(
-                "DELETE FROM documents WHERE id=?", [(i,) for i in removed]
+            dimension = (
+                self._state("dimension")
+                if self._state("embedding") == signature
+                else None
             )
-            for key, value in [("pipeline", pipeline), ("embedding", signature)]:
-                self.db.execute(
-                    "INSERT OR REPLACE INTO state VALUES(?,?)", (key, value)
-                )
-            if changed or removed:
-                self.db.execute(
-                    "INSERT OR REPLACE INTO state VALUES(?,?)",
-                    ("generation", str(int(self._state("generation") or 0) + 1)),
-                )
+        # Parse and infer into a bounded on-disk stage, with no live writer lock.
+        # Only changed documents are staged; unchanged indexes are not cloned.
+        with tempfile.TemporaryDirectory(prefix="rag-ingest-") as directory:
+            staged_path = Path(directory) / "stage.sqlite"
+            with Index(staged_path, self.embedder, vector_cache_bytes=0) as staged:
+                seen, changed, batch = set(), 0, []
+                with staged._transaction(write=True):
+                    if contextual:
+                        staged._heading_schema()
+                    if dimension:
+                        staged.db.execute(
+                            "INSERT OR REPLACE INTO state VALUES('dimension',?)",
+                            (dimension,),
+                        )
+                    for path in paths:
+                        doc = document(
+                            path,
+                            root,
+                            None
+                            if rebuild
+                            else existing.get(path.relative_to(root).as_posix()),
+                        )
+                        seen.add(doc.id)
+                        if not rebuild and existing.get(doc.id) == doc.fingerprint:
+                            continue
+                        staged._replace(doc, size, overlap, contextual, batch)
+                        changed += 1
+                    staged._insert_chunks(batch)
+                staged_dimension = staged._state("dimension")
+            removed = existing.keys() - seen
+            self.db.execute("ATTACH DATABASE ? AS ingest_stage", (str(staged_path),))
+            try:
+                with self._transaction(write=True):
+                    current = (
+                        self._state("generation"),
+                        self._state("pipeline"),
+                        self._state("embedding"),
+                        self.db.execute("PRAGMA data_version").fetchone()[0],
+                        self.db.total_changes,
+                    )
+                    if current != expected:
+                        raise ValueError(
+                            "Index changed during ingestion preparation; retry"
+                        )
+                    if contextual:
+                        self._heading_schema()
+                    offset = self.db.execute(
+                        "SELECT coalesce(max(id),0) FROM sections"
+                    ).fetchone()[0]
+                    self.db.execute(
+                        "DELETE FROM documents WHERE id IN (SELECT id FROM ingest_stage.documents)"
+                    )
+                    self.db.executemany(
+                        "DELETE FROM documents WHERE id=?", [(i,) for i in removed]
+                    )
+                    self.db.execute(
+                        "INSERT INTO documents SELECT * FROM ingest_stage.documents"
+                    )
+                    self.db.execute(
+                        "INSERT INTO document_metadata SELECT * FROM ingest_stage.document_metadata"
+                    )
+                    self.db.execute(
+                        "INSERT INTO sections SELECT id+?,document,locator,text,chars FROM ingest_stage.sections",
+                        (offset,),
+                    )
+                    self.db.execute(
+                        "INSERT INTO chunks SELECT id,section+?,start,end,search_text,vector,context FROM ingest_stage.chunks",
+                        (offset,),
+                    )
+                    if contextual:
+                        self.db.execute(
+                            """INSERT INTO heading_nodes
+                            SELECT cast(section+? AS text)||substr(id,instr(id,':')),section+?,
+                            CASE WHEN parent IS NULL THEN NULL ELSE cast(section+? AS text)||substr(parent,instr(parent,':')) END,
+                            start,end,level,title FROM ingest_stage.heading_nodes ORDER BY section,start""",
+                            (offset, offset, offset),
+                        )
+                    if staged_dimension:
+                        self.db.execute(
+                            "INSERT OR REPLACE INTO state VALUES('dimension',?)",
+                            (staged_dimension,),
+                        )
+                    elif expected[2] != signature:
+                        self.db.execute("DELETE FROM state WHERE key='dimension'")
+                    for key, value in [
+                        ("pipeline", pipeline),
+                        ("embedding", signature),
+                    ]:
+                        self.db.execute(
+                            "INSERT OR REPLACE INTO state VALUES(?,?)", (key, value)
+                        )
+                    if changed or removed:
+                        self.db.execute(
+                            "INSERT OR REPLACE INTO state VALUES('generation',?)",
+                            (str(int(expected[0] or 0) + 1),),
+                        )
+                        self._dense_cache = None
+            finally:
+                self.db.execute("DETACH DATABASE ingest_stage")
         return {"changed": changed, "removed": len(removed), **self.status()}
+
+    def _heading_schema(self):
+        self.db.execute("""CREATE TABLE IF NOT EXISTS heading_nodes(
+            id TEXT PRIMARY KEY, section INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+            parent TEXT REFERENCES heading_nodes(id) ON DELETE CASCADE,
+            start INTEGER NOT NULL,end INTEGER NOT NULL,level INTEGER NOT NULL,title TEXT NOT NULL)""")
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS heading_section ON heading_nodes(section,parent,start)"
+        )
 
     def _replace(
         self, doc: Document, size: int, overlap: int, contextual: bool, batch: list
@@ -289,7 +377,7 @@ class Index:
             ).lastrowid
             if contextual:
                 active = []
-                for start, level, title, _ in headings(text):
+                for start, level, heading_title, _ in headings(text):
                     while active and active[-1][0] >= level:
                         _, node = active.pop()
                         self.db.execute(
@@ -305,7 +393,7 @@ class Index:
                             start,
                             len(text),
                             level,
-                            title,
+                            heading_title,
                         ),
                     )
                     active.append((level, node))
@@ -484,7 +572,7 @@ class Index:
         filters=None,
         k=5,
         candidates=40,
-        mode="hybrid",
+        mode="lexical",
         min_cosine=0.3,
         match="any",
         context_chars=1800,
@@ -508,8 +596,8 @@ class Index:
             or not isinstance(distinct_documents, bool)
         ):
             raise ValueError("Invalid search parameters")
-        if mode == "dense" and not self.embedder:
-            raise ValueError("Dense search requires an embedder")
+        if mode in {"dense", "hybrid"} and not self.embedder:
+            raise ValueError("Dense/hybrid search requires an embedder")
         terms = list(
             dict.fromkeys(
                 t
@@ -559,14 +647,18 @@ class Index:
                 for rank, cid in enumerate(ranking, 1):
                     scores[cid] = scores.get(cid, 0) + 1 / (60 + rank)
             order = sorted(scores, key=lambda c: (-scores[c], c))[:candidates]
-            rows = {
-                cid: self.db.execute(
+            rows = {}
+            for offset in range(0, len(order), 256):
+                ids = order[offset : offset + 256]
+                placeholders = ",".join("?" for _ in ids)
+                for row in self.db.execute(
                     "SELECT c.id,c.section,c.start,c.end,c.context,s.document,s.locator,s.chars,d.metadata FROM chunks c "
-                    "JOIN sections s ON s.id=c.section JOIN documents d ON d.id=s.document WHERE c.id=?",
-                    (cid,),
-                ).fetchone()
-                for cid in order
-            }
+                    "JOIN sections s ON s.id=c.section JOIN documents d ON d.id=s.document WHERE c.id IN ("
+                    + placeholders
+                    + ")",
+                    ids,
+                ):
+                    rows[row["id"]] = row
             if self.reranker and order:
                 import numpy as np
 

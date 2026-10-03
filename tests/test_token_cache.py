@@ -88,3 +88,38 @@ def test_token_cache_build_failure_rolls_back_and_corruption_fails(tmp_path):
         )
         with pytest.raises(ValueError, match="token vectors"):
             index.search("revenue", mode="lexical")
+
+
+@pytest.mark.parametrize("commit_peer", [False, True])
+def test_token_inference_does_not_lock_live_writer(tmp_path, commit_peer):
+    import sqlite3
+
+    path = tmp_path / "index.sqlite"
+    root = tmp_path / "corpus"
+    root.mkdir()
+    (root / "a.txt").write_text("Revenue 100.")
+    model = TokenRanker()
+    original = model.encode_documents
+
+    def encode(texts):
+        with sqlite3.connect(path, timeout=0.1) as peer:
+            peer.execute("BEGIN IMMEDIATE")
+            if commit_peer:
+                peer.execute("INSERT INTO state VALUES('peer','committed')")
+            else:
+                peer.rollback()
+        return original(texts)
+
+    model.encode_documents = encode
+    with Index(path, reranker=model) as index:
+        index.ingest(root)
+        if commit_peer:
+            with pytest.raises(ValueError, match="Index changed"):
+                index.prepare_reranker_cache()
+            assert not index.db.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='rerank_tokens'"
+            ).fetchone()
+            assert index._state("peer") == "committed"
+        else:
+            assert index.prepare_reranker_cache()["prepared"] == 1
+            assert index.search("revenue")[0].score == 1

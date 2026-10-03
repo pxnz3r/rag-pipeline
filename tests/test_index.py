@@ -173,7 +173,7 @@ def test_dense_roundtrip_filtering_and_model_consistency(tmp_path, corpus):
         index.embedder = Encoder()
         index.embedder.signature = "different-model"
         with pytest.raises(ValueError, match="does not match"):
-            index.search("Revenue")
+            index.search("Revenue", mode="hybrid")
     with Index(path) as offline:
         assert offline.search("Revenue", mode="lexical")
         with pytest.raises(ValueError, match="same embedder"):

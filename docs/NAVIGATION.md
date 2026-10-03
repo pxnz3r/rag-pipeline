@@ -8,8 +8,8 @@ The research review is [RETRIEVAL-LANDSCAPE.md](RETRIEVAL-LANDSCAPE.md). The imp
 pip install -e '.[models]'
 rag-pipeline ingest data
 # Explicit offline preparation; no dense encoder is needed for lexical + MaxSim.
-rag-pipeline --reranker colbert prepare-reranker
-rag-pipeline --rerank --reranker colbert search "Which obligations survive termination?"
+rag-pipeline --reranker rag_pipeline.embeddings:ColBERT prepare-reranker
+rag-pipeline --rerank --reranker rag_pipeline.embeddings:ColBERT search "Which obligations survive termination?"
 ```
 
 `modern-colbert` selects pinned GTE-ModernColBERT, with a different projection/tokenizer/query configuration and higher CPU/index cost. Both are Apache-2.0 models. Cache preparation retains one checkpoint at a time and rolls back if encoding fails. It stores float32 token arrays in SQLite, deletes them when chunks disappear, and verifies the original passage hash when reading. Changing source files requires ordinary `ingest`, then rerunning preparation; missing tokens remain correct through slower per-query encoding. A cache is optional and reconstructible, not original evidence. It is much larger than a pooled-vector index; check indexing time and disk before choosing it.
@@ -21,8 +21,8 @@ For a fresh controlled comparison, record offline cost separately:
 ```bash
 python scripts/prepare_finqa.py /tmp/finqa.json
 rag-pipeline evaluate /tmp/finqa.json --output /tmp/lexical.json
-rag-pipeline --rerank --reranker colbert evaluate /tmp/finqa.json --cache-reranker --output /tmp/colbert.json
-rag-pipeline --rerank --reranker modern-colbert evaluate /tmp/finqa.json --cache-reranker --output /tmp/modern-colbert.json
+rag-pipeline --rerank --reranker rag_pipeline.embeddings:ColBERT evaluate /tmp/finqa.json --cache-reranker --output /tmp/colbert.json
+rag-pipeline --rerank --reranker rag_pipeline.embeddings:ModernColBERT evaluate /tmp/finqa.json --cache-reranker --output /tmp/modern-colbert.json
 ```
 
 ## Self-hosted instruction-aware embeddings

@@ -8,7 +8,8 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from .answers import Operand, answer, calculate, groq_generator
+from .answers import Operand, answer, calculate
+from .configuration import load_config, provider
 from .evaluation import evaluate
 from .index import Index
 
@@ -19,29 +20,28 @@ def main() -> int:
         description="Local, evidence-first document and source-code retrieval.",
     )
     parser.add_argument(
+        "--config", type=Path, help="Explicit JSON pipeline/provider configuration."
+    )
+    parser.add_argument(
         "--index", type=Path, default=Path("processed_data/index.sqlite")
     )
     parser.add_argument(
         "--dense",
         action="store_true",
-        help="Load the pinned CPU MiniLM ONNX model (optional models extra).",
+        help="Enable the explicitly configured embedding provider.",
     )
     parser.add_argument(
         "--rerank",
         action="store_true",
-        help="Use the optional CPU cross-encoder; increases latency.",
+        help="Enable the explicitly configured reranking provider.",
     )
     parser.add_argument(
         "--embedding",
-        choices=["minilm", "e5"],
-        default="minilm",
-        help="Encoder to load with --dense; must match the stored index.",
+        help="Installed module:factory for the encoder; alternatively use --config.",
     )
     parser.add_argument(
         "--reranker",
-        choices=["cross-encoder", "colbert", "modern-colbert"],
-        default="cross-encoder",
-        help="Candidate scoring model to use with --rerank.",
+        help="Installed module:factory for reranking; alternatively use --config.",
     )
     parser.add_argument(
         "--embedding-server",
@@ -53,6 +53,14 @@ def main() -> int:
     parser.add_argument(
         "--server-revision",
         help="Immutable model commit or SHA-256 digest; must match the server artifact.",
+    )
+    parser.add_argument(
+        "--query-template", default="{text}", help="Explicit embedding query template."
+    )
+    parser.add_argument(
+        "--passage-template",
+        default="{text}",
+        help="Explicit embedding passage template.",
     )
     parser.add_argument(
         "--vector-cache-mib",
@@ -76,24 +84,25 @@ def main() -> int:
         query = sub.add_parser(name)
         query.add_argument("question")
         query.add_argument("--filter", action="append", default=[], metavar="KEY=VALUE")
-        query.add_argument("-k", type=int, default=5)
+        query.add_argument("-k", type=int, default=None)
         query.add_argument(
-            "--mode", choices=["lexical", "dense", "hybrid"], default="hybrid"
+            "--mode", choices=["lexical", "dense", "hybrid"], default=None
         )
-        query.add_argument("--match", choices=["all", "any"], default="any")
+        query.add_argument("--match", choices=["all", "any"], default=None)
         query.add_argument(
             "--distinct-documents",
             action="store_true",
+            default=None,
             help="Select one evidence window per document.",
         )
         if name == "ask":
             query.add_argument(
-                "--context-order", choices=["ranked", "source"], default="ranked"
+                "--context-order", choices=["ranked", "source"], default=None
             )
             query.add_argument(
                 "--generate",
                 action="store_true",
-                help="Use Groq; default returns exact evidence only.",
+                help="Use the configured generation provider; default returns evidence.",
             )
         if name == "calculate":
             query.add_argument(
@@ -117,15 +126,13 @@ def main() -> int:
         help="Evaluate explicitly judged JSON corpus/queries; includes latency.",
     )
     bench.add_argument("dataset", type=Path)
-    bench.add_argument(
-        "--mode", choices=["lexical", "dense", "hybrid"], default="lexical"
-    )
-    bench.add_argument("-k", type=int, default=5)
+    bench.add_argument("--mode", choices=["lexical", "dense", "hybrid"], default=None)
+    bench.add_argument("-k", type=int, default=None)
     bench.add_argument("--repeats", type=int, default=3)
     bench.add_argument("--split", default=None)
     bench.add_argument("--output", type=Path)
     bench.add_argument("--contextual", action="store_true")
-    bench.add_argument("--distinct-documents", action="store_true")
+    bench.add_argument("--distinct-documents", action="store_true", default=None)
     bench.add_argument(
         "--cache-reranker",
         action="store_true",
@@ -133,38 +140,78 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        embedder = None
+        config = load_config(args.config) if args.config else {}
+        search = dict(config.get("search", {}))
+        for key, default in {
+            "k": 5,
+            "mode": "lexical",
+            "match": "any",
+            "distinct_documents": False,
+        }.items():
+            value = getattr(args, key, None)
+            setattr(args, key, value if value is not None else search.get(key, default))
+        embedder = reranker = generator = None
         if (
-            args.dense
-            and args.command != "status"
-            and getattr(args, "mode", None) != "lexical"
+            args.command != "status"
+            and (args.command == "ingest" or args.mode != "lexical")
+            and (
+                args.dense
+                or args.embedding_server
+                or args.embedding
+                or "embedding" in config
+            )
         ):
             if args.embedding_server:
-                from .providers import EmbeddingServer
-
-                embedder = EmbeddingServer(
-                    args.embedding_server,
-                    model=args.server_model,
-                    revision=args.server_revision,
-                    api_key_env="RAG_EMBEDDING_API_KEY"
-                    if "RAG_EMBEDDING_API_KEY" in os.environ
-                    else None,
+                spec = dict(
+                    kind="openai",
+                    options=dict(
+                        endpoint=args.embedding_server,
+                        model=args.server_model,
+                        revision=args.server_revision,
+                        query_template=args.query_template,
+                        passage_template=args.passage_template,
+                        api_key_env="RAG_EMBEDDING_API_KEY"
+                        if "RAG_EMBEDDING_API_KEY" in os.environ
+                        else None,
+                    ),
                 )
+            elif args.embedding:
+                spec = dict(kind="python", factory=args.embedding)
             else:
-                from .embeddings import E5, MiniLM
-
-                embedder = E5() if args.embedding == "e5" else MiniLM()
-        reranker = None
+                spec = config.get("embedding")
+            if spec is None:
+                raise ValueError(
+                    "--dense requires an explicit embedding provider; use --config or --embedding module:factory"
+                )
+            embedder = provider(spec, "embedding")
         if (
-            args.rerank and args.command in {"search", "ask", "calculate", "evaluate"}
-        ) or args.command == "prepare-reranker":
-            from .embeddings import ColBERT, CrossEncoder, ModernColBERT
-
-            reranker = {
-                "colbert": ColBERT,
-                "modern-colbert": ModernColBERT,
-                "cross-encoder": CrossEncoder,
-            }[args.reranker]()
+            (args.rerank or args.reranker or "reranker" in config)
+            and args.command
+            in {"search", "ask", "calculate", "evaluate", "prepare-reranker"}
+            or args.command == "prepare-reranker"
+        ):
+            spec = (
+                dict(kind="python", factory=args.reranker)
+                if args.reranker
+                else config.get("reranker")
+            )
+            if spec is None:
+                raise ValueError("Reranking requires an explicit provider")
+            reranker = provider(spec, "reranker")
+        if getattr(args, "generate", False):
+            if "generation" not in config:
+                raise ValueError(
+                    "--generate requires an explicit generation provider in --config"
+                )
+            generator = provider(config["generation"], "generation")
+        if (
+            args.command in {"search", "ask", "calculate", "evaluate"}
+            and args.mode in {"dense", "hybrid"}
+            and embedder is None
+        ):
+            raise ValueError(
+                "Dense/hybrid mode requires an explicit embedding provider"
+            )
         if args.command == "evaluate":
             result = evaluate(
                 args.dataset,
@@ -178,6 +225,11 @@ def main() -> int:
                 vector_cache_bytes=args.vector_cache_mib * 1024 * 1024,
                 cache_reranker=args.cache_reranker,
                 distinct_documents=args.distinct_documents,
+                search_options={
+                    key: value
+                    for key, value in search.items()
+                    if key not in {"k", "mode", "distinct_documents"}
+                },
             )
             if args.output:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -209,7 +261,8 @@ def main() -> int:
                         if not separator or key in filters:
                             raise ValueError("Filters require unique KEY=VALUE pairs")
                         filters[key] = value
-                    opts = dict(
+                    opts = dict(search)
+                    opts.update(
                         filters=filters,
                         k=args.k,
                         mode=args.mode,
@@ -225,8 +278,14 @@ def main() -> int:
                             answer(
                                 index,
                                 args.question,
-                                context_order=args.context_order,
-                                generate=groq_generator() if args.generate else None,
+                                context_order=args.context_order
+                                or config.get("answer", {}).get(
+                                    "context_order", "ranked"
+                                ),
+                                max_evidence_chars=config.get("answer", {}).get(
+                                    "max_evidence_chars", 12000
+                                ),
+                                generate=generator,
                                 **opts,
                             )
                         )

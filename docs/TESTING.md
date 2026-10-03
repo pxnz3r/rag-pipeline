@@ -1,4 +1,8 @@
-# Tests and measured retrieval — 0.4
+# Validation — 0.5
+
+104 tests pass with actual model assets on Python 3.10/3.12. New tests exercise configuration through local HTTP ingestion/retrieval/reranking/generation and CLI, generic ONNX against reference graph outputs, and real peer writers during staged inference. These are runtime contract checks, not new answer-quality scores. The full 98-question FinQA hybrid replay produces exactly the same per-question rankings as 0.4; [regression artifact](../benchmarks/results-0.5.json). [Architecture audit](ARCHITECTURE-AUDIT.md) distinguishes fixed boundaries from remaining work.
+
+## Historical measured retrieval — 0.4
 
 **93 tests pass with actual pinned models on both Python 3.10 and 3.12.** Core mode skips the one model integration test, which exercises MiniLM, E5, CrossEncoder, ColBERT and ModernColBERT. Both resolved environments have no known dependency advisories. Boundary tests cover atomic migrations/rollback, WAL readers, corrupt caches, scope enforcement, bounded navigation/planner calls, embedding HTTP responses, exact citations/arithmetic and number/unit swaps. The wheel is exercised outside the checkout without NumPy. These checks do not prove every defect absent. Research features add code; the historical 0.3 line-count reduction is not a 0.4 reduction claim.
 
@@ -77,9 +81,9 @@ pip-audit --local
 python scripts/prepare_finqa.py /tmp/finqa-proxy.json
 python scripts/prepare_cuad.py /tmp/cuad-proxy.json
 python scripts/prepare_scifact.py /tmp/scifact.json
-rag-pipeline --dense evaluate /tmp/finqa-proxy.json --mode hybrid -k 5 --repeats 3 --output /tmp/hybrid.json
-rag-pipeline --rerank --reranker colbert evaluate /tmp/finqa-proxy.json --mode lexical --cache-reranker -k 5 --repeats 3 --output /tmp/colbert.json
-rag-pipeline --dense --rerank --reranker colbert evaluate /tmp/scifact.json --mode hybrid --cache-reranker --distinct-documents -k 10 --repeats 3
+rag-pipeline --dense --embedding rag_pipeline.embeddings:MiniLM evaluate /tmp/finqa-proxy.json --mode hybrid -k 5 --repeats 3 --output /tmp/hybrid.json
+rag-pipeline --rerank --reranker rag_pipeline.embeddings:ColBERT evaluate /tmp/finqa-proxy.json --mode lexical --cache-reranker -k 5 --repeats 3 --output /tmp/colbert.json
+rag-pipeline --dense --embedding rag_pipeline.embeddings:MiniLM --rerank --reranker rag_pipeline.embeddings:ColBERT evaluate /tmp/scifact.json --mode hybrid --cache-reranker --distinct-documents -k 10 --repeats 3
 python scripts/compare_results.py /tmp/finqa-proxy.json /tmp/hybrid.json /tmp/colbert.json -k 5
 rag-pipeline evaluate benchmarks/context-canary.json --contextual -k 1
 OPENBLAS_NUM_THREADS=1 python scripts/benchmark_dense.py --rows 10000 --repeats 9

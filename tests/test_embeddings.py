@@ -22,6 +22,25 @@ def test_pinned_cpu_model_semantic_paraphrase():
     assert vectors.shape == (3, 384) and np.isfinite(vectors).all()
     assert vectors[0] @ vectors[1] > vectors[0] @ vectors[2]
 
+    from rag_pipeline.embeddings import ONNXEmbedding, ONNXReranker
+
+    configured = ONNXEmbedding(
+        model=model.model,
+        revision=model.revision,
+        dimensions=384,
+        length=256,
+        pooling="mean",
+    )
+    raw = configured.encode(
+        [
+            "How much did sales increase?",
+            "Revenue grew substantially this year.",
+            "The courts of London have exclusive jurisdiction.",
+        ]
+    )
+    raw /= np.linalg.norm(raw, axis=1, keepdims=True)
+    assert np.allclose(raw, vectors, atol=1e-5)
+    assert configured.encode([]).shape == (0, 384)
     reversed_vectors = model.encode(
         [
             "The courts of London have exclusive jurisdiction.",
@@ -41,6 +60,21 @@ def test_pinned_cpu_model_semantic_paraphrase():
         ],
     )
     assert scores.shape == (2,) and np.isfinite(scores).all() and scores[0] > scores[1]
+
+    configured_ranker = ONNXReranker(
+        model=ranker.model, revision=ranker.revision, length=512
+    )
+    assert np.allclose(
+        configured_ranker.score(
+            "How much did sales increase?",
+            [
+                "Revenue grew substantially this year.",
+                "The courts of London have exclusive jurisdiction.",
+            ],
+        ),
+        scores,
+        atol=1e-5,
+    )
 
     asymmetric = E5()
     passages = asymmetric.encode(
