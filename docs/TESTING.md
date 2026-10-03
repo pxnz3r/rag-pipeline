@@ -78,8 +78,8 @@ python scripts/prepare_finqa.py /tmp/finqa-proxy.json
 python scripts/prepare_cuad.py /tmp/cuad-proxy.json
 python scripts/prepare_scifact.py /tmp/scifact.json
 rag-pipeline --dense evaluate /tmp/finqa-proxy.json --mode hybrid -k 5 --repeats 3 --output /tmp/hybrid.json
-rag-pipeline --reranker colbert evaluate /tmp/finqa-proxy.json --mode lexical --cache-reranker -k 5 --repeats 3 --output /tmp/colbert.json
-rag-pipeline --dense --reranker colbert evaluate /tmp/scifact.json --mode hybrid --cache-reranker --distinct-documents -k 10 --repeats 3
+rag-pipeline --rerank --reranker colbert evaluate /tmp/finqa-proxy.json --mode lexical --cache-reranker -k 5 --repeats 3 --output /tmp/colbert.json
+rag-pipeline --dense --rerank --reranker colbert evaluate /tmp/scifact.json --mode hybrid --cache-reranker --distinct-documents -k 10 --repeats 3
 python scripts/compare_results.py /tmp/finqa-proxy.json /tmp/hybrid.json /tmp/colbert.json -k 5
 rag-pipeline evaluate benchmarks/context-canary.json --contextual -k 1
 OPENBLAS_NUM_THREADS=1 python scripts/benchmark_dense.py --rows 10000 --repeats 9

@@ -31,4 +31,4 @@ Use the actual IDs/quotes returned by your search. Growth is `(new−old)/old×1
 
 Dataset format: `documents:[{id,text,metadata}]`, `queries:[{id,question,filters,relevant:[document_id],split,spans:[{document,start,end}]}]`. Spans are optional Unicode offsets in the document text. Empty `relevant` marks a negative query. Missing labels/unknown IDs and invalid spans fail; corpus filenames are generated internally rather than accepting dataset paths. Document metrics deduplicate retrieved chunks; character metrics union overlapping returned evidence. These do not measure generated factuality.
 
-`query` and `evaluate` accept `--distinct-documents` to return at most one window per source document. Use `-k 10` with this flag for the separately reported SciFact document-ranking protocol; the default retains multiple evidence windows for clause and financial lookup.
+`search`, `ask`, `calculate` and `evaluate` accept `--distinct-documents` to return at most one window per source document. Use `-k 10` with this flag for the separately reported SciFact document-ranking protocol; the default retains multiple evidence windows for clause and financial lookup.
