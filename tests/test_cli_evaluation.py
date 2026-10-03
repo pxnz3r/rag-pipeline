@@ -29,6 +29,20 @@ def test_installed_cli_ingest_search_ask_and_errors(tmp_path):
     assert proc.returncode == 0 and json.loads(proc.stdout)[0]["locator"] == "text"
     proc = run("--index", path, "ask", "Revenue", cwd=tmp_path)
     assert json.loads(proc.stdout)["status"] == "evidence"
+    assert run("--index", path, "--dense", "status", cwd=tmp_path).returncode == 0
+    assert (
+        run(
+            "--index",
+            path,
+            "--dense",
+            "search",
+            "Revenue",
+            "--mode",
+            "lexical",
+            cwd=tmp_path,
+        ).returncode
+        == 0
+    )
     assert (
         run(
             "--index", path, "search", "Revenue", "--filter", "malformed", cwd=tmp_path

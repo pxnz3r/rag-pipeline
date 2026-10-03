@@ -22,6 +22,31 @@ class Retriever:
         return [HIT]
 
 
+def test_source_order_keeps_evidence_budget_and_numerical_row_order(tmp_path):
+    from rag_pipeline import Index
+
+    root = tmp_path / "corpus"
+    root.mkdir()
+    (root / "report.csv").write_text(
+        "topic,value\n" + "\n".join(f"revenue,{i}" for i in range(12))
+    )
+    with Index(tmp_path / "i.sqlite") as index:
+        index.ingest(root)
+        ranked = answer(index, "revenue", k=10, mode="lexical", max_evidence_chars=300)
+        ordered = answer(
+            index,
+            "revenue",
+            k=10,
+            mode="lexical",
+            max_evidence_chars=300,
+            context_order="source",
+        )
+        assert {h.id for h in ranked.sources} == {h.id for h in ordered.sources}
+        ordinals = [int(h.locator.split()[1]) for h in ordered.sources]
+        assert ordinals == sorted(ordinals)
+        assert sum(len(h.text) for h in ordered.sources) <= 300
+
+
 def test_offline_evidence_and_valid_cited_response():
     result = answer(Retriever(), "Revenue?")
     assert result.status == "evidence" and HIT.text in result.answer
@@ -181,3 +206,94 @@ def test_currency_symbols_are_not_assumed_to_be_us_dollars():
         answer(Retriever(), "Revenue?", generate=lambda *_: json.dumps(payload)).status
         == "generation_failed"
     )
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Dose: 50 g.",
+        "Dose: 50 grams.",
+        "Dose: 50grams.",
+        "Dose: 50 mg/kg.",
+        "Dose: 50 mcg.",
+        "Balance: 100 EUR.",
+        "Interval: 14 hours.",
+    ],
+)
+def test_adjacent_number_unit_swaps_are_rejected(claim):
+    from dataclasses import replace
+
+    hit = replace(
+        HIT,
+        text="Dose: 50 mg. Mass: 5 g. Weight dose: 2 mg/kg. Trace: 3 mcg. Balance: 100 USD; tax: 200 EUR. Interval: 14 days; window: 2 hours.",
+    )
+
+    class Evidence:
+        def search(self, *args, **kwargs):
+            return [hit]
+
+    payload = {
+        "claims": [
+            {"text": claim, "evidence": [{"source_id": hit.id, "quote": hit.text}]}
+        ]
+    }
+    assert (
+        answer(Evidence(), "dose", generate=lambda *_: json.dumps(payload)).status
+        == "generation_failed"
+    )
+
+
+def test_medical_units_equivalence_and_compound_measurements():
+    from dataclasses import replace
+
+    hit = replace(
+        HIT, text="Dose 50 mg, trace 3 µg, concentration 2 mg/mL, pressure 120 mmHg."
+    )
+
+    class Evidence:
+        def search(self, *args, **kwargs):
+            return [hit]
+
+    for claim in [
+        "Dose 50 mg.",
+        "Dose 50 milligrams.",
+        "Trace 3 mcg.",
+        "Concentration 2 mg/mL.",
+        "Pressure 120 mmHg.",
+    ]:
+        payload = {
+            "claims": [
+                {"text": claim, "evidence": [{"source_id": hit.id, "quote": hit.text}]}
+            ]
+        }
+        assert (
+            answer(
+                Evidence(), "measurements", generate=lambda *_: json.dumps(payload)
+            ).status
+            == "cited"
+        )
+
+
+def test_scientific_decimal_values_and_exponent_span_precision():
+    from decimal import Decimal
+
+    hit = Hit(
+        "scientific",
+        "records",
+        "row 2",
+        0,
+        40,
+        "USD: 1e3; 1e-3; 1e100; 1e-100; 1e1001.",
+        {},
+        1,
+    )
+    operands = [Operand(hit.id, hit.text, value, "USD") for value in ["1e3", "1e-3"]]
+    assert calculate("difference", operands, [hit])["value"] == "999.999"
+    wide = [Operand(hit.id, hit.text, value, "USD") for value in ["1e100", "1e-100"]]
+    result = calculate("sum", wide, [hit])
+    assert result["precision"] >= 201
+    value = Decimal(result["value"])
+    assert value.as_tuple().digits[0] == value.as_tuple().digits[-1] == 1
+    assert len(value.as_tuple().digits) == 201
+    with pytest.raises(ValueError, match="oversized"):
+        calculate("sum", [Operand(hit.id, hit.text, "1e1001", "USD")], [hit])

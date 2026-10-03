@@ -13,7 +13,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-FORMATS = {".pdf", ".txt", ".md", ".csv", ".json", ".jsonl"}
+FORMATS = {".pdf", ".txt", ".md", ".csv", ".json", ".jsonl", ".py", ".sql"}
 MAX_BYTES = 20 * 1024 * 1024
 KEY = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,63}$")
 
@@ -40,6 +40,10 @@ class Document:
     fingerprint: str
     metadata: dict
     sections: list[tuple[str, str]]
+
+
+def _nonfinite(value):
+    raise ValueError("Non-finite JSON number: " + value)
 
 
 def document(path: Path, root: Path, previous: str | None = None) -> Document:
@@ -92,12 +96,16 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
         elif suffix in {".json", ".jsonl"}:
             objects = (
                 [
-                    json.loads(line, parse_float=str, parse_int=str)
+                    json.loads(
+                        line, parse_float=str, parse_int=str, parse_constant=_nonfinite
+                    )
                     for line in text.splitlines()
                     if line.strip()
                 ]
                 if suffix == ".jsonl"
-                else json.loads(text, parse_float=str, parse_int=str)
+                else json.loads(
+                    text, parse_float=str, parse_int=str, parse_constant=_nonfinite
+                )
             )
             objects = objects if isinstance(objects, list) else [objects]
             # Explicit keys, original numeric spellings for JSON string values, and
@@ -151,7 +159,11 @@ def pdf_sections(raw: bytes) -> list[tuple[str, str]]:
 
 def spans(text: str, size: int = 900, overlap: int = 100):
     """Original character offsets, paragraph/line boundaries, bounded overlap."""
-    if size < 100 or not 0 <= overlap < size:
+    if (
+        any(not isinstance(v, int) or isinstance(v, bool) for v in (size, overlap))
+        or size < 100
+        or not 0 <= overlap < size
+    ):
         raise ValueError("Chunk size must be >=100 and overlap smaller than size")
     start = 0
     while start < len(text):
@@ -168,3 +180,53 @@ def spans(text: str, size: int = 900, overlap: int = 100):
         if end == len(text):
             break
         start = max(start + 1, end - overlap)
+
+
+def headings(text):
+    stack, fence = [], None
+    for line_match in re.finditer(r"[^\n]*(?:\n|$)", text):
+        line = line_match[0]
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if marker:
+            a, b = marker.span(1)
+            symbol, width = line[a], b - a
+            if fence is None:
+                fence = (symbol, width)
+            elif symbol == fence[0] and width >= fence[1]:
+                fence = None
+        if fence is None and (
+            match := re.match(r"^ {0,3}(#{1,6})[ \t]+(.+?)\s*$", line)
+        ):
+            level, title = (
+                len(match[1]),
+                re.sub(r"[ \t]+#+[ \t]*$", "", match[2]).strip()[:300],
+            )
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack.append((level, title))
+            yield (
+                line_match.start(),
+                level,
+                title,
+                " > ".join(t for _, t in stack)[:300],
+            )
+
+
+def contextual_spans(text: str, size: int, overlap: int, enabled: bool):
+    """Extractive Markdown headings only; fence contents never become headings.
+
+    Offsets and evidence remain original. Context is bounded indexing guidance,
+    not an LLM summary or independently citable evidence.
+    """
+    if not enabled:
+        for a, b in spans(text, size, overlap):
+            yield a, b, ""
+        return
+
+    records = headings(text)
+    pending, context = next(records, None), ""
+    for a, b in spans(text, size, overlap):
+        while pending is not None and pending[0] <= a:
+            context = pending[3]
+            pending = next(records, None)
+        yield a, b, context

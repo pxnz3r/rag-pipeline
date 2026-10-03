@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Add opt-in extractive heading context, transactional 0.3 schema migration, exact software symbols and Python/SQL ingestion.
+- Batch embeddings across documents, prune dense block losers with exact tie handling, and suppress overlapping returned evidence windows.
+- Add optional pinned E5 query/passage encoding and adjacent numeric measurement/currency unit validation.
+- Add full SciFact retrieval preparation/evaluation, six-domain context regressions and a synthetic dense scan ablation; document measured tradeoffs.
+- Add projected ColBERT/ModernColBERT candidate scoring with transactional passage-token preparation; preserve original evidence/checkpoint compatibility.
+- Add scoped bounded document navigation, source-ordered evidence and deterministic calculation tools; support contemporary self-hosted embedding models.
+- Remove unnecessary reader-open schema writes so readers can open during long WAL indexing; document paper/OSS protocols and unsuccessful comparisons.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.

@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import os
 import re
+from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation, localcontext
 
 from .index import Hit
 
-DIGITS = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
+DIGITS = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][+-]?\d+)?"
 NUMBER = re.compile(
     r"(?<![\w.,])(?:\([+-]?" + DIGITS + r"\)|[+-]?" + DIGITS + r")(?![\w,]|\.\d)"
 )
@@ -20,7 +21,7 @@ CLAIM_NUMBER = re.compile(
     r"\(?[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][+-]?\d+)?\)?"
 )
 UNIT = re.compile(
-    r"\b(?:(?:thousand|million|billion|trillion|percent)s?|basis points?|bps|USD|EUR|GBP|JPY|CNY|CHF|AUD|CAD|INR)\b|[%$€£]",
+    r"\b(?:(?:thousand|million|billion|trillion|percent)s?|basis points?|bps|USD|EUR|GBP|JPY|CNY|CHF|AUD|CAD|INR|(?:mg|mcg|[µμu]g|g|mmol|mEq)/(?:kg|mL|L)|milligrams?|micrograms?|kilograms?|grams?|millilit(?:er|re)s?|lit(?:er|re)s?|mg|mcg|[µμu]g|kg|g|mL|L|mmol|mEq|mmHg|IU|bpm|milliseconds?|seconds?|minutes?|hours?|days?|weeks?|months?|years?|ms|sec|min|hr)\b|[%$€£]",
     re.I,
 )
 UNIT_ALIASES = {
@@ -28,6 +29,21 @@ UNIT_ALIASES = {
     "basis point": "basis_point",
     "basis points": "basis_point",
     "bps": "basis_point",
+    "mcg": "microgram",
+    "ug": "microgram",
+    "µg": "microgram",
+    "μg": "microgram",
+    "milligram": "mg",
+    "gram": "g",
+    "kilogram": "kg",
+    "milliliter": "ml",
+    "millilitre": "ml",
+    "liter": "l",
+    "litre": "l",
+    "millisecond": "ms",
+    "sec": "second",
+    "min": "minute",
+    "hr": "hour",
 }
 
 
@@ -40,7 +56,10 @@ def _numbers(text):
 
 def _units(text):
     units = {
-        UNIT_ALIASES.get(token.lower(), token.lower().rstrip("s"))
+        UNIT_ALIASES.get(
+            token.lower(),
+            UNIT_ALIASES.get(token.lower().rstrip("s"), token.lower().rstrip("s")),
+        )
         for token in UNIT.findall(text)
     }
     scales = {
@@ -53,6 +72,30 @@ def _units(text):
     return units | {
         scales[t.lower()] for t in re.findall(r"(?<=\d)(bn|[kmbt])\b", text, re.I)
     }
+
+
+def _quantities(text):
+    """Bind explicitly adjacent numbers and units; no inferred table semantics."""
+    pairs = set()
+    for match in CLAIM_NUMBER.finditer(text):
+        after = re.match(
+            r"\s*((?:" + UNIT.pattern + r")(?:\s+(?:" + UNIT.pattern + r")){0,2})",
+            text[match.end() : match.end() + 80],
+            re.I,
+        )
+        before = re.search(
+            r"(USD|EUR|GBP|JPY|CNY|CHF|AUD|CAD|INR|[$€£])\s*$",
+            text[max(0, match.start() - 40) : match.start()],
+            re.I,
+        )
+        tokens = []
+        if after:
+            tokens.extend(_units(after[1]))
+        if before:
+            tokens.extend(_units(before[1]))
+        value = next(iter(_numbers(match[0])))
+        pairs.update((value, unit) for unit in tokens)
+    return pairs
 
 
 @dataclass(frozen=True)
@@ -70,11 +113,45 @@ def answer(
     generate=None,
     filters=None,
     max_evidence_chars=12000,
+    context_order="ranked",
     **search_options,
 ) -> Answer:
-    if not 100 <= max_evidence_chars <= 50000:
+    if (
+        not isinstance(max_evidence_chars, int)
+        or isinstance(max_evidence_chars, bool)
+        or not 100 <= max_evidence_chars <= 50000
+        or context_order
+        not in {
+            "ranked",
+            "source",
+        }
+    ):
         raise ValueError("Evidence budget must be between 100 and 50000 characters")
-    retrieved = index.search(question, filters=filters, **search_options)
+    with index._transaction() if context_order == "source" else nullcontext():
+        retrieved = index.search(question, filters=filters, **search_options)
+        source_key = None
+        if context_order == "source":
+
+            def source_key(hit):
+                ordinal = index.db.execute(
+                    "SELECT id FROM sections WHERE document=? AND locator=?",
+                    (hit.document, hit.locator),
+                ).fetchone()[0]
+                return hit.document, ordinal, hit.start
+
+        return _answer_evidence(
+            question,
+            retrieved,
+            generate=generate,
+            max_evidence_chars=max_evidence_chars,
+            source_key=source_key,
+        )
+
+
+def _answer_evidence(
+    question, retrieved, *, generate=None, max_evidence_chars=12000, source_key=None
+):
+    """Shared citation validation for trusted retrieval/read tool outputs."""
     hits, remaining = [], max_evidence_chars
     for hit in retrieved:
         if remaining <= 0:
@@ -84,6 +161,10 @@ def answer(
         remaining -= len(text)
     if not hits:
         return Answer("no_evidence", "", [])
+    if source_key:
+        # Selection/truncation remains relevance-first; only presentation changes.
+        # Section IDs preserve original page/row order (unlike locator strings).
+        hits.sort(key=source_key)
     if generate is None:
         return Answer("evidence", "\n\n".join(f"[{h.id}] {h.text}" for h in hits), hits)
     system = (
@@ -141,7 +222,14 @@ def answer(
             if not _numbers(claim["text"]) <= _numbers(quoted):
                 raise ValueError("Unsupported numeric claim")
             if not _units(claim["text"]) <= _units(quoted):
-                raise ValueError("Unsupported currency or scale claim")
+                raise ValueError("Unsupported currency, scale or measurement unit")
+            quantities = _quantities(quoted)
+            bound_numbers = {number for number, _ in quantities}
+            if any(
+                number in bound_numbers and (number, unit) not in quantities
+                for number, unit in _quantities(claim["text"])
+            ):
+                raise ValueError("Number/unit binding is absent from quote")
         claims = result["claims"]
         return Answer("cited", "\n".join(c["text"] for c in claims), hits, claims)
     except Exception:
@@ -192,14 +280,25 @@ def calculate(operation: str, operands: list[Operand], sources: list[Hit]) -> di
             value = Decimal(spelling)
         except InvalidOperation as exc:
             raise ValueError("Invalid decimal") from exc
-        if not value.is_finite() or len(spelling) > 100:
+        if (
+            not value.is_finite()
+            or len(spelling) > 100
+            or abs(value.adjusted()) > 1000
+            or abs(value.as_tuple().exponent) > 1000
+        ):
             raise ValueError("Invalid or oversized decimal")
         units.add(item.unit.casefold())
         values.append(value)
     if len(units) != 1:
         raise ValueError("Mixed units or scales; convert explicitly before calculating")
     with localcontext() as context:
-        context.prec = max(50, sum(len(str(v)) for v in values) + 10)
+        context.prec = max(
+            50,
+            max(v.adjusted() for v in values)
+            - min(v.as_tuple().exponent for v in values)
+            + len(str(len(values)))
+            + 10,
+        )
         if operation == "growth_percent" and values[1] < 0:
             raise ValueError("Growth percent requires a positive base")
         if operation in {"ratio", "growth_percent"} and values[1] == 0:
