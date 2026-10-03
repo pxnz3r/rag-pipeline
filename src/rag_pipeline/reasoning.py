@@ -7,6 +7,7 @@ Execution validates provenance and arithmetic, not operand/period semantics.
 from __future__ import annotations
 
 import json
+import keyword
 import re
 from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation, localcontext
@@ -50,6 +51,31 @@ def _decimal(value):
     if not number.is_finite() or abs(number.as_tuple().exponent) > 1000:
         raise ValueError("Numeric operand outside supported exponent range")
     return number, percent
+
+
+def approved_constants(constants=None):
+    if constants is not None and not isinstance(constants, dict):
+        raise ValueError("Approved constants must be a named object")
+    allowed = (
+        {"zero": "0", "one": "1", "percent": "100"}
+        if constants is None
+        else dict(constants)
+    )
+    if len(allowed) > 64:
+        raise ValueError("Too many approved constants")
+    for name, value in allowed.items():
+        if (
+            not isinstance(name, str)
+            or len(name) > 64
+            or not name.isidentifier()
+            or keyword.iskeyword(name)
+            or name in ARITIES
+            or re.fullmatch(r"N[0-9]+", name)
+        ):
+            raise ValueError("Invalid approved constant name")
+        if _decimal(value)[1]:
+            raise ValueError("Approved constants require explicit scalar values")
+    return allowed
 
 
 def numeric_catalog(sources):
@@ -184,11 +210,7 @@ def execute_program(program, sources, *, constants=None):
         or not 1 <= len(program["steps"]) <= 32
     ):
         raise ValueError("Program requires one to 32 explicit steps")
-    allowed = (
-        {"zero": "0", "one": "1", "percent": "100"}
-        if constants is None
-        else dict(constants)
-    )
+    allowed = approved_constants(constants)
     literals = {name: _decimal(value)[0] for name, value in allowed.items()}
     known = {hit.id: hit for hit in sources}
     catalog = numeric_catalog(sources)
@@ -336,7 +358,7 @@ def execute_program(program, sources, *, constants=None):
     return ProgramAnswer("calculated", str(values[-1]), list(used.values()), trace)
 
 
-def program_schema(sources, *, include_answer=False, catalog=False):
+def program_schema(sources, *, include_answer=False, catalog=False, constants=None):
     def obj(properties):
         return dict(
             type="object",
@@ -361,12 +383,10 @@ def program_schema(sources, *, include_answer=False, catalog=False):
             choices.append(obj(dict(operand=dict(type="string", enum=ids))))
     elif sources:
         choices.append(source)
-    choices.extend(
-        [
-            obj(dict(step=dict(type="integer", minimum=0, maximum=31))),
-            obj(dict(constant=dict(type="string", enum=["zero", "one", "percent"]))),
-        ]
-    )
+    choices.append(obj(dict(step=dict(type="integer", minimum=0, maximum=31))))
+    names = list(approved_constants(constants))
+    if names:
+        choices.append(obj(dict(constant=dict(type="string", enum=names))))
     operand = dict(anyOf=choices)
     step = dict(
         anyOf=[
@@ -414,6 +434,7 @@ def reason_from_sources(
     max_evidence_chars=12000,
     max_attempts=1,
     program_format="steps",
+    constants=None,
 ):
     if (
         not callable(generate)
@@ -429,6 +450,7 @@ def reason_from_sources(
         )
     if program_format not in {"steps", "expression"}:
         raise ValueError("Unknown program format")
+    allowed = approved_constants(constants)
     from .expressions import EXPRESSION_SYSTEM, execute_expression, expression_schema
 
     system = EXPRESSION_SYSTEM if program_format == "expression" else PROGRAM_SYSTEM
@@ -438,6 +460,20 @@ def reason_from_sources(
     if not numeric_catalog(hits):
         return ProgramAnswer("abstained", sources=hits)
     payload = dict(question=question, evidence=program_evidence(hits))
+    if constants is not None:
+        payload["constants"] = allowed
+        system = system.replace(
+            'Named constants: {"constant":"zero"}, {"constant":"one"}, {"constant":"percent"} (100). ',
+            "Use only approved named constants in the constants payload. ",
+        ).replace(
+            "Allowed named constants: zero (0), one (1), percent (100). Only these constants may be numeric literals. ",
+            "Use only approved named constants in the constants payload. ",
+        )
+        system += " Apply a conversion only when requested and supported by approved constants."
+        system = system.replace(
+            "Preserve source units.",
+            "Preserve source units unless the question requests an approved conversion.",
+        )
     for attempt in range(1, max_attempts + 1):
         try:
             raw = (
@@ -446,7 +482,7 @@ def reason_from_sources(
                     json.dumps(payload),
                     expression_schema(hits)
                     if program_format == "expression"
-                    else program_schema(hits, catalog=True),
+                    else program_schema(hits, catalog=True, constants=allowed),
                 )
                 if getattr(generate, "structured_outputs", False)
                 else generate(system, json.dumps(payload))
@@ -460,9 +496,9 @@ def reason_from_sources(
             if program == {"steps": []} or program == {"expression": None}:
                 return ProgramAnswer("abstained", sources=hits, attempts=attempt)
             result = (
-                execute_expression(program["expression"], hits)
+                execute_expression(program["expression"], hits, constants=allowed)
                 if program_format == "expression"
-                else execute_program(program, hits)
+                else execute_program(program, hits, constants=allowed)
             )
             return ProgramAnswer(
                 result.status, result.value, result.sources, result.steps, attempt
@@ -525,6 +561,7 @@ def reason(
     max_attempts=1,
     route="retrieval",
     program_format="steps",
+    constants=None,
     **search_options,
 ):
     if route not in {"retrieval", "context", "auto"}:
@@ -550,6 +587,7 @@ def reason(
             max_evidence_chars=max_evidence_chars,
             max_attempts=max_attempts,
             program_format=program_format,
+            constants=constants,
         ),
         route=selected_route,
     )

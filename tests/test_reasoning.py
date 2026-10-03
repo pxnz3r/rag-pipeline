@@ -415,3 +415,50 @@ def test_explicit_large_context_budget_is_not_a_model_ceiling(tmp_path):
         with pytest.raises(ValueError, match="budget"):
             small.read("report.txt", "text", chars=10**100)
         assert small.remaining == 1000 and not small.trace
+
+
+@pytest.mark.parametrize("program_format", ["steps", "expression"])
+def test_reasoning_uses_operator_approved_constants(evidence, program_format):
+    payloads = []
+    raw = (
+        '{"expression":"N1*million"}'
+        if program_format == "expression"
+        else '{"steps":[{"op":"multiply","args":[{"operand":"N1"},{"constant":"million"}]}]}'
+    )
+
+    class Generate:
+        structured_outputs = program_format == "steps"
+
+        def __call__(self, system, payload):
+            payloads.append(json.loads(payload))
+            return raw
+
+        def generate_structured(self, system, payload, schema):
+            assert '"million"' in json.dumps(schema) and '"percent"' not in json.dumps(
+                schema
+            )
+            return self(system, payload)
+
+    result = reason_from_sources(
+        "Revenue in whole USD?",
+        evidence,
+        generate=Generate(),
+        constants={"million": "1000000"},
+        program_format=program_format,
+    )
+    assert Decimal(result.value) == 125000000
+    assert payloads[0]["constants"] == {"million": "1000000"}
+    from rag_pipeline.reasoning import approved_constants, program_schema
+
+    schema = program_schema(evidence, constants={"million": "1000000"})
+    assert '"million"' in json.dumps(schema) and '"percent"' not in json.dumps(schema)
+    assert '"constant"' not in json.dumps(program_schema(evidence, constants={}))
+    for constants in [
+        {"N0": "1"},
+        {"mean": "1"},
+        {"if": "1"},
+        {"x": "2%"},
+        {"x": "NaN"},
+    ]:
+        with pytest.raises(ValueError):
+            approved_constants(constants)

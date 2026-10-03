@@ -292,6 +292,9 @@ def main() -> int:
                                 max_attempts=args.max_attempts,
                                 route=args.route,
                                 program_format=args.program_format,
+                                constants=config.get("answer", {}).get(
+                                    "reasoning_constants"
+                                ),
                                 **opts,
                             )
                         )
