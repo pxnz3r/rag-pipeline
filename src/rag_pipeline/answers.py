@@ -324,7 +324,7 @@ def calculate(operation: str, operands: list[Operand], sources: list[Hit]) -> di
     }
 
 
-def groq_generator(model="llama-3.3-70b-versatile"):
+def groq_generator(model):
     from groq import Groq
 
     if not os.environ.get("GROQ_API_KEY"):

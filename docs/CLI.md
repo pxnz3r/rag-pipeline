@@ -1,17 +1,17 @@
 # CLI
 
-Global `--index PATH` defaults to `processed_data/index.sqlite`. `--dense` loads the pinned MiniLM embedder, or E5 with `--embedding e5`; `--rerank` loads the optional cross-encoder. Place global flags before the command. All runtime commands work from an installed wheel without a source checkout.
+Global `--index PATH` defaults to `processed_data/index.sqlite`. `--config FILE` selects explicit providers and search/answer budgets. No model is selected by default. `--embedding module:factory` and `--reranker module:factory` accept installed adapters without a fixed name list. `--dense`/`--rerank` require a supplied provider; chat generation requires a configuration and `--generate`. Place global flags before the command. See [configuration and migration](CONFIGURATION.md).
 
-`--reranker colbert|modern-colbert` selects token MaxSim instead of the cross-encoder. `prepare-reranker` explicitly encodes passage tokens; use it after ingest for faster repeated reranking. `evaluate --cache-reranker` includes that preparation and reports its time separately. `--vector-cache-mib 64` bounds the warm unfiltered dense matrix; `0` streams. `--embedding-server URL --server-model NAME --server-revision COMMIT_OR_SHA256`, with `--dense`, uses an instruction-aware self-hosted embedding endpoint. Local ONNX retrieval stays offline; endpoint retrieval sends text to the configured server. [Examples and model requirements](NAVIGATION.md).
+`prepare-reranker` prepares the chosen token adapter's passage vectors; `evaluate --cache-reranker` reports that cost separately. `--vector-cache-mib 64` bounds the unfiltered dense matrix; `0` streams. Server embedding flags accept an explicit endpoint, model and immutable revision, with `--query-template`/`--passage-template`; plain text is the default. Network adapters send text to your chosen server. Local ONNX adapters do not send inference text to a model server.
 
 | Command | Behavior |
 | --- | --- |
 | `ingest DIRECTORY [--size 900 --overlap 100] [--contextual]` | Transactionally synchronize the complete directory; missing input fails |
-| `search QUESTION [--filter KEY=VALUE] [-k 5] [--mode hybrid] [--match any]` | JSON sources with document/locator/offset/text/metadata/score/context |
-| `ask QUESTION [search flags] [--generate]` | Default exact evidence; opt-in Groq quote-checked claims |
+| `search QUESTION [--filter KEY=VALUE] [-k 5] [--mode lexical] [--match any]` | JSON sources with document/locator/offset/text/metadata/score/context |
+| `ask QUESTION [search flags] [--generate]` | Default exact evidence; opt-in configured generation with quote-checked claims |
 | `calculate QUESTION --operation OP --operands FILE [search flags]` | Source-bound Decimal sum/difference/ratio/growth_percent |
 | `status` | Counts, committed generation and embedding signature |
-| `prepare-reranker` | Transactionally encode missing passage tokens for the selected ColBERT checkpoint |
+| `prepare-reranker` | Transactionally encode missing passage tokens for the selected token adapter |
 | `evaluate DATASET [--mode lexical] [-k 5] [--repeats 3] [--split NAME] [--output FILE] [--contextual]` | Judged retrieval, optional character spans, negative cases, index/query timing |
 
 Repeat `--filter` for company/year/jurisdiction/contract/account scope. Keys must be unique; filters are ANDed. `--match all` requires every non-stopword lexical term (useful for exact account lookups); `any` preserves broad natural-language recall. Heading context is an opt-in ingestion configuration, not a per-query summary. `evaluate --contextual` uses the same ingestion path. E5 uses separate query/passage prefixes and a 512-token limit; MiniLM keeps its existing 256-token behavior. Index signatures prevent querying E5 vectors with MiniLM or conversely.

@@ -40,7 +40,9 @@ def server():
 
 def test_embedding_server_reorders_and_separates_query_instruction(server):
     endpoint, requests, _ = server
-    model = EmbeddingServer(endpoint, model="qwen3", revision="a" * 64)
+    model = EmbeddingServer(
+        endpoint, model="qwen3", revision="a" * 64, instruction="Retrieve evidence."
+    )
     assert model.encode(["first", "second"]) == [[1.0, 0.0], [0.0, 1.0]]
     assert model.encode_queries(["first", "second"]) == [[1.0, 0.0], [0.0, 1.0]]
     assert requests[0]["input"] == ["first", "second"]

@@ -9,13 +9,26 @@ class _ONNX:
     batch_size = 8
     weights = "onnx/model.onnx"
 
-    def __init__(self, threads=2):
+    def __init__(self, threads=2, providers=None):
         import onnxruntime as ort
         from huggingface_hub import hf_hub_download
         from tokenizers import Tokenizer
 
-        if not 1 <= threads <= 64:
+        if (
+            not isinstance(threads, int)
+            or isinstance(threads, bool)
+            or not 1 <= threads <= 64
+        ):
             raise ValueError("Threads must be between 1 and 64")
+        if providers is not None and (
+            not isinstance(providers, list)
+            or not providers
+            or any(
+                not isinstance(p, str) or p not in ort.get_available_providers()
+                for p in providers
+            )
+        ):
+            raise ValueError("Requested ONNX execution provider is unavailable")
         self.tokenizer = Tokenizer.from_file(
             hf_hub_download(self.model, "tokenizer.json", revision=self.revision)
         )
@@ -27,7 +40,7 @@ class _ONNX:
         self.session = ort.InferenceSession(
             hf_hub_download(self.model, self.weights, revision=self.revision),
             sess_options=options,
-            providers=["CPUExecutionProvider"],
+            providers=providers or ["CPUExecutionProvider"],
         )
 
     def _batches(self, texts):
@@ -51,7 +64,8 @@ class _ONNX:
             }
             yield (
                 self.session.run(
-                    None, {i.name: feeds[i.name] for i in self.session.get_inputs()}
+                    [self.output_name] if hasattr(self, "output_name") else None,
+                    {i.name: feeds[i.name] for i in self.session.get_inputs()},
                 )[0],
                 feeds["attention_mask"],
                 positions,
@@ -222,3 +236,159 @@ class ModernColBERT(ColBERT):
     mask_id = 50284
     query_expansion = False
     signature = f"{model}@{revision}:onnx:fp32:maxsim:48:300:128:v1"
+
+
+class ONNXEmbedding(_ONNX):
+    """Configured ONNX graph, tokenizer, pooling and asymmetric text prefixes.
+
+    Model-specific token protocols require their own installed adapter rather
+    than guessing settings from the repository name.
+    """
+
+    def __init__(
+        self,
+        *,
+        model,
+        revision,
+        dimensions,
+        length,
+        pooling,
+        weights="onnx/model.onnx",
+        query_prefix="",
+        passage_prefix="",
+        output_index=0,
+        batch_size=8,
+        threads=2,
+        providers=None,
+    ):
+        import json
+        import re
+
+        if (
+            not isinstance(model, str)
+            or not model.strip()
+            or not isinstance(revision, str)
+            or not re.fullmatch(r"[0-9a-f]{40}", revision)
+        ):
+            raise ValueError("ONNX model and immutable repository commit required")
+        if (
+            any(
+                not isinstance(v, int) or isinstance(v, bool) or v < 1
+                for v in (dimensions, length, batch_size)
+            )
+            or dimensions > 65536
+            or length > 131072
+            or batch_size > 256
+        ):
+            raise ValueError("Invalid ONNX dimensions, length or batch size")
+        if (
+            pooling not in {"mean", "cls", "last", "pooled"}
+            or not isinstance(output_index, int)
+            or isinstance(output_index, bool)
+            or output_index < 0
+        ):
+            raise ValueError("Explicit supported pooling and output index required")
+        if any(
+            not isinstance(v, str) or len(v) > 4000
+            for v in (query_prefix, passage_prefix, weights)
+        ):
+            raise ValueError("Invalid ONNX prefix or weight path")
+        self.model, self.revision, self.weights = model, revision, weights
+        self.dimensions, self.length, self.batch_size = dimensions, length, batch_size
+        self.pooling, self.output_index = pooling, output_index
+        self.query_prefix, self.passage_prefix = query_prefix, passage_prefix
+        self.signature = json.dumps(
+            dict(
+                model=model,
+                revision=revision,
+                weights=weights,
+                dimensions=dimensions,
+                length=length,
+                pooling=pooling,
+                query_prefix=query_prefix,
+                passage_prefix=passage_prefix,
+                output_index=output_index,
+                protocol="onnx-config:v1",
+            ),
+            sort_keys=True,
+        )
+        super().__init__(threads=threads, providers=providers)
+        outputs = self.session.get_outputs()
+        if output_index >= len(outputs):
+            raise ValueError("ONNX output index does not exist")
+        self.output_name = outputs[output_index].name
+
+    def encode(self, texts):
+        return self._encode([self.passage_prefix + t for t in texts])
+
+    def encode_queries(self, texts):
+        return self._encode([self.query_prefix + t for t in texts])
+
+    def _encode(self, texts):
+        values = np.empty((len(texts), self.dimensions), dtype=np.float32)
+        for hidden, attention, positions in self._batches(texts):
+            if self.pooling == "pooled":
+                pooled = hidden
+            elif hidden.ndim != 3 or hidden.shape[:2] != attention.shape:
+                raise ValueError("ONNX token output shape does not match attention")
+            elif self.pooling == "mean":
+                mask = attention[..., None]
+                pooled = (hidden * mask).sum(1) / mask.sum(1).clip(min=1)
+            elif self.pooling == "cls":
+                pooled = hidden[:, 0]
+            else:
+                last = np.where(attention != 0, np.arange(attention.shape[1]), -1).max(
+                    1
+                )
+                if (last < 0).any():
+                    raise ValueError("ONNX query has no unmasked tokens")
+                pooled = hidden[np.arange(len(hidden)), last]
+            if (
+                pooled.shape != (len(positions), self.dimensions)
+                or not np.isfinite(pooled).all()
+            ):
+                raise ValueError("ONNX embedding output does not match configuration")
+            values[positions] = pooled
+        return values
+
+
+class ONNXReranker(ONNXEmbedding):
+    """Configured cross-encoder output; multiclass scoring is explicit."""
+
+    def __init__(self, *, score_index=None, **options):
+        if score_index is not None and (
+            not isinstance(score_index, int)
+            or isinstance(score_index, bool)
+            or score_index < 0
+        ):
+            raise ValueError("Invalid reranking score index")
+        super().__init__(dimensions=1, pooling="pooled", **options)
+        import json
+
+        self.score_index = score_index
+        self.signature = json.dumps(
+            dict(
+                encoder=json.loads(self.signature),
+                score_index=score_index,
+                protocol="onnx-rerank:v1",
+            ),
+            sort_keys=True,
+        )
+
+    def score(self, question, texts):
+        values = np.empty(len(texts), dtype=np.float32)
+        for logits, _, positions in self._batches([(question, text) for text in texts]):
+            if self.score_index is None:
+                if logits.size != len(positions):
+                    raise ValueError(
+                        "Multiclass reranker requires explicit score_index"
+                    )
+                scores = logits.reshape(-1)
+            else:
+                if logits.ndim != 2 or self.score_index >= logits.shape[1]:
+                    raise ValueError("Reranker score_index outside graph output")
+                scores = logits[:, self.score_index]
+            if not np.isfinite(scores).all():
+                raise ValueError("Non-finite ONNX reranking scores")
+            values[positions] = scores
+        return values
