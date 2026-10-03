@@ -129,17 +129,9 @@ def answer(
     context_order="ranked",
     **search_options,
 ) -> Answer:
-    if (
-        not isinstance(max_evidence_chars, int)
-        or isinstance(max_evidence_chars, bool)
-        or not 100 <= max_evidence_chars <= 50000
-        or context_order
-        not in {
-            "ranked",
-            "source",
-        }
-    ):
-        raise ValueError("Evidence budget must be between 100 and 50000 characters")
+    _evidence_budget(max_evidence_chars)
+    if context_order not in {"ranked", "source"}:
+        raise ValueError("Unknown evidence context order")
     with index._transaction() if context_order == "source" else nullcontext():
         retrieved = index.search(question, filters=filters, **search_options)
         source_key = None
@@ -177,13 +169,15 @@ def _grounded_quote(source, quote):
     )
 
 
+def _evidence_budget(value):
+    if not isinstance(value, int) or isinstance(value, bool) or value < 100:
+        raise ValueError(
+            "Evidence budget must be an integer of at least 100 characters"
+        )
+
+
 def _pack_evidence(retrieved, max_evidence_chars):
-    if (
-        not isinstance(max_evidence_chars, int)
-        or isinstance(max_evidence_chars, bool)
-        or not 100 <= max_evidence_chars <= 50000
-    ):
-        raise ValueError("Evidence budget must be between 100 and 50000 characters")
+    _evidence_budget(max_evidence_chars)
     hits, remaining = [], max_evidence_chars
     for hit in retrieved:
         if remaining <= 0:
@@ -224,8 +218,6 @@ def _answer_evidence(
         payload = json.dumps(
             {"question": question, "evidence": [h.to_dict() for h in hits]}
         )
-        if len(payload) > 50000:
-            raise ValueError("Oversized evidence payload")
         raw = generate(system, payload)
         if not isinstance(raw, str) or len(raw) > 50000:
             raise ValueError("Oversized generation response")

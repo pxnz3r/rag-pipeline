@@ -31,7 +31,7 @@ python scripts/benchmark_qa.py --data /tmp/qa --flashrag /path/to/FlashRAG \
 python scripts/summarize_qa.py /tmp/test.jsonl /tmp/test.summary.json
 ```
 
-Record your actual runtime/hardware in a separate manifest on reruns. Timing here depends on the CPU quota and persistent prompt cache. Resuming a JSONL run requires an identical code/config/data manifest. A changed configuration needs a new output file. The final source algorithm is unchanged during test generation; defensive nesting/resource checks were completed after the development process had loaded its earlier code, which its separate source hashes identify.
+Record your actual runtime/hardware in a separate manifest on reruns. Timing here depends on the CPU quota and persistent prompt cache. Resuming a JSONL run requires an identical code/config/data manifest. A changed configuration needs a new output file. The primary process retains its frozen loaded implementation and prompt. Its manifest identifies the exact source version, available at commit `f8c70fd38dfd712e934378be7ffd01a62d7506f0`. Defensive nesting/resource checks were completed after the development process loaded its earlier code. A later fix removes arbitrary ceilings on operator-selected evidence/navigation budgets; the primary still uses 6500 characters. Release verification replays every saved formula against final code and checks prediction/status equality.
 
 ## Failed earlier trial
 
@@ -40,3 +40,5 @@ Record your actual runtime/hardware in a separate manifest on reruns. Timing her
 ## Interpretation
 
 The judge follows official FinQA five-decimal float rounding and exact numeric gold comparison. Invalid expressions, abstentions and truncations are incorrect. Program equivalence, calibrated unanswerability, full-corpus report discovery and semantic entailment are not scored. A `calculated` result proves operand provenance and arithmetic validity; valid but semantically wrong programs are counted explicitly. Per-route Wilson intervals and case-paired bootstrap differences show uncertainty. Development results cannot establish test performance, and this small CPU fixture cannot establish market leadership or medical/legal correctness.
+
+An exploratory answer-only control is specified while the primary test is in progress, then run sequentially on the same cases and retrieval/context routes. It uses original unannotated source text and a numeric answer schema, with the same model, generation cap and scoring. This assesses the complete structured-program treatment against plain answer generation; its post-hoc status is explicit. No control prompt is selected using individual test answers.

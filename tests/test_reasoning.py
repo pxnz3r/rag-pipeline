@@ -380,3 +380,38 @@ def test_deep_model_json_fails_as_validation_error():
 
     with pytest.raises(ValueError, match="nesting"):
         parse_program("[" * 2000 + "0" + "]" * 2000)
+
+
+def test_explicit_large_context_budget_is_not_a_model_ceiling(tmp_path):
+    from rag_pipeline import Index, Navigation, reason
+
+    root = tmp_path / "source"
+    root.mkdir()
+    text = (
+        "Revenue USD 125 million.\n" + "Original evidence. " * 4000 + "\nTAIL_EVIDENCE"
+    )
+    (root / "report.txt").write_text(text)
+    captured = []
+    with Index(tmp_path / "db.sqlite") as index:
+        index.ingest(root)
+        result = reason(
+            index,
+            "Revenue?",
+            route="context",
+            filters={"title": "report"},
+            max_evidence_chars=len(text),
+            generate=lambda system, payload: (
+                captured.append(payload)
+                or '{"steps":[{"op":"identity","args":[{"operand":"N0"}]}]}'
+            ),
+        )
+        assert result.value == "125" and "TAIL_EVIDENCE" in captured[0]
+        assert len(captured[0]) > 50000
+        nav = Navigation(index, max_chars=200000, max_calls=101)
+        read = nav.read("report.txt", "text", chars=len(text))
+        assert read["source"]["text"] == text
+        assert nav.remaining == 200000 - len(json.dumps(read, ensure_ascii=False))
+        small = Navigation(index, max_chars=1000)
+        with pytest.raises(ValueError, match="budget"):
+            small.read("report.txt", "text", chars=10**100)
+        assert small.remaining == 1000 and not small.trace

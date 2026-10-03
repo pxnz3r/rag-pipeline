@@ -324,3 +324,25 @@ def test_answer_rejects_numeric_substrings_and_truncated_source(tmp_path):
             )
 
         assert answer(index, "Amount", generate=generate).status == "generation_failed"
+
+
+def test_configured_large_evidence_is_passed_to_generator():
+    import json
+
+    from rag_pipeline.answers import _answer_evidence
+
+    quote = "Revenue USD 125 million."
+    text = quote + " Original evidence." * 4000
+    hit = Hit("s", "report", "text", 0, len(text), text, {}, 0)
+    captured = []
+
+    def generate(system, payload):
+        captured.append(payload)
+        return json.dumps(
+            dict(claims=[dict(text=quote, evidence=[dict(source_id="s", quote=quote)])])
+        )
+
+    result = _answer_evidence(
+        "Revenue?", [hit], max_evidence_chars=len(text), generate=generate
+    )
+    assert result.status == "cited" and len(captured[0]) > 50000

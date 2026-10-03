@@ -39,7 +39,7 @@ Scope: source extraction through final response, CLI/configuration, persistence,
 | Agent planning quality | **Remaining:** bounded tools/callbacks are infrastructure; no trained GRASP/DeepRAG policy or independently evaluated planner |
 | Answer semantic correctness | **Remaining:** exact quotations prove text exists, not entailment, correct period, completeness or clinical validity |
 | Abstention/calibration | **Remaining:** cosine threshold and no-evidence handling do not establish calibrated unanswerability across models/domains |
-| Context budget | **Remaining:** character budgets are explicit but not tokenizer-aware allocation; tokens depend on chosen generator |
+| Context budget | Fixed in 0.6: operator-selected evidence/navigation budgets and large reads have no arbitrary context ceiling; read materialization remains bounded by remaining budget. **Remaining:** tokenizer-aware allocation; tokens depend on the configured generator |
 | Scope as authorization | **Remaining:** metadata filters are retrieval scope, not tenant security; private library is not a public multitenant service |
 | Conversation context and freshness | **Remaining:** caller supplies scope/question; no evaluated conversational memory, trading feeds, validity intervals or contradictory-version reconciliation |
 | Source-code semantics | **Remaining:** identifier preservation/text ingestion, not AST/dependency/call-graph retrieval |
