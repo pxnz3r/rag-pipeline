@@ -1,6 +1,6 @@
 """Evidence-first local retrieval. Public APIs are loaded lazily for PDF workers."""
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     "Index",
     "Hit",

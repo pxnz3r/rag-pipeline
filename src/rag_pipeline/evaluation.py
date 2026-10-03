@@ -68,9 +68,24 @@ def evaluate(
     vector_cache_bytes=64 * 1024 * 1024,
     cache_reranker=False,
     distinct_documents=False,
+    search_options=None,
 ):
-    if not 1 <= repeats <= 100 or not isinstance(cache_reranker, bool):
+    if (
+        not isinstance(repeats, int)
+        or isinstance(repeats, bool)
+        or not 1 <= repeats <= 100
+        or not isinstance(cache_reranker, bool)
+    ):
         raise ValueError("Repeats must be between 1 and 100")
+    options = dict(search_options or {})
+    if set(options) - {
+        "candidates",
+        "min_cosine",
+        "context_chars",
+        "diversify",
+        "match",
+    }:
+        raise ValueError("Unknown evaluation search option")
     data = json.loads(Path(dataset).read_text(encoding="utf-8"))
     docs, queries = data["documents"], data["queries"]
     if len({d["id"] for d in docs}) != len(docs) or len(
@@ -127,6 +142,7 @@ def evaluate(
                 mode=mode,
                 k=k,
                 distinct_documents=distinct_documents,
+                **options,
             )
             for query in queries:
                 for _ in range(repeats):
@@ -137,6 +153,7 @@ def evaluate(
                         mode=mode,
                         k=k,
                         distinct_documents=distinct_documents,
+                        **options,
                     )
                     samples.append((time.perf_counter() - started) * 1000)
                 # Judgment unit is document, not chunk: deduplicate explicitly.
@@ -171,6 +188,7 @@ def evaluate(
                 else mode,
                 "contextual": contextual,
                 "distinct_documents": distinct_documents,
+                "search_options": options,
                 "vector_cache_bytes": vector_cache_bytes,
                 "embedding": stats["embedding"],
                 "reranker": getattr(reranker, "signature", None),

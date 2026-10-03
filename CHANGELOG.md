@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Require explicit independent embedding/reranking/generation providers; remove CLI model lists and implicit model/vendor defaults. Add strict JSON configuration, installed factories, generic ONNX pooling/output/device settings and bounded server chat/reranking protocols.
+- Make query/passage formatting explicit and signed; accept operator-declared immutable server versions. Dense/hybrid mode no longer silently falls back. Evaluation applies and records configured search budgets.
+- Stage changed-document and token inference on disk before atomic live publication; detect peer-write conflicts and retain whole-update rollback. Batch candidate metadata queries. Fix metadata/heading shadowing and remove checkpoint-specific token-cache geometry caps in favor of a byte budget.
+- Add end-to-end configured-provider/CLI contract checks, real concurrent-writer regressions and actual configurable ONNX verification. Record unresolved architecture limitations explicitly.
+
 ## 0.4.0
 
 - Add opt-in extractive heading context, transactional 0.3 schema migration, exact software symbols and Python/SQL ingestion.
