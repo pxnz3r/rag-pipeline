@@ -11,6 +11,11 @@ from pathlib import Path
 from rag_pipeline import Index
 from rag_pipeline.answers import _pack_evidence
 from rag_pipeline.configuration import load_config, provider
+from rag_pipeline.expressions import (
+    EXPRESSION_SYSTEM,
+    execute_expression,
+    expression_schema,
+)
 from rag_pipeline.providers import ChatServer
 from rag_pipeline.reasoning import (
     PROGRAM_SYSTEM,
@@ -43,6 +48,9 @@ parser.add_argument(
     default=["retrieval", "full-context", "iterative-2"],
 )
 parser.add_argument("--limit", type=int, default=100)
+parser.add_argument(
+    "--program-format", choices=["steps", "expression"], default="steps"
+)
 args = parser.parse_args()
 ROOT, FLASH = args.data, args.flashrag
 settings = load_config(args.config)
@@ -58,6 +66,12 @@ SYSTEM = (
     )
     .replace('return {"steps":[]}.', 'return {"steps":[],"answer":null}.')
 )
+
+if args.program_format == "expression":
+    SYSTEM = (
+        EXPRESSION_SYSTEM
+        + " After the expression, give your numeric answer estimate as a string in the answer field (or null if insufficient)."
+    )
 
 CONFIG = {
     "device": "cpu",
@@ -122,23 +136,12 @@ class Generator:
             started = time.perf_counter()
             response = self.client._request(
                 "/chat/completions",
-                dict(
-                    temperature=self.client.temperature,
-                    max_tokens=self.client.max_tokens,
-                    response_format={
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "program",
-                            "strict": True,
-                            "schema": program_schema(
-                                sources, include_answer=True, catalog=True
-                            ),
-                        },
-                    },
-                    messages=[
-                        dict(role="system", content=SYSTEM),
-                        dict(role="user", content=payload),
-                    ],
+                self.client._payload(
+                    SYSTEM,
+                    payload,
+                    expression_schema(sources, include_answer=True)
+                    if args.program_format == "expression"
+                    else program_schema(sources, include_answer=True, catalog=True),
                 ),
                 "Generation",
             )
@@ -162,18 +165,24 @@ class Generator:
 class Retriever:
     def __init__(self, index, record, doc, route):
         self.index, self.record, self.doc, self.route = index, record, doc, route
+        metadata = json.loads(
+            index.db.execute(
+                "SELECT metadata FROM documents WHERE id=?", (doc,)
+            ).fetchone()[0]
+        )
+        self.scope = {"report": record["filename"]}
+        if "source_view" in metadata:
+            self.scope["source_view"] = metadata["source_view"]
 
     def batch_search(self, questions):
         output = []
         for question in questions:
             if self.route == "full-context":
-                hits = scoped_sources(
-                    self.index, {"report": self.record["filename"]}, BUDGET
-                )
+                hits = scoped_sources(self.index, self.scope, BUDGET)
             else:
                 hits = self.index.search(
                     question,
-                    filters={"report": self.record["filename"]},
+                    filters=self.scope,
                     **settings["search"],
                 )
             output.append(_pack_evidence(hits, BUDGET))
@@ -238,11 +247,16 @@ def run(split, routes, limit):
                         direct = numeric(parsed.get("answer"))
                     except (ValueError, ArithmeticError):
                         direct = None
-                    if parsed.get("steps") == []:
+                    if parsed.get("steps") == [] or (
+                        args.program_format == "expression"
+                        and parsed.get("expression") is None
+                    ):
                         status = "abstained"
                     else:
-                        result = execute_program(
-                            dict(steps=parse_program(raw)["steps"]), hits
+                        result = (
+                            execute_expression(parsed["expression"], hits)
+                            if args.program_format == "expression"
+                            else execute_program(dict(steps=parsed["steps"]), hits)
                         )
                         program = Decimal(result.value)
                         status = result.status
@@ -291,7 +305,8 @@ def run(split, routes, limit):
 
 if __name__ == "__main__":
     manifest = dict(
-        protocol="finqa-numeric-common-program-v1",
+        protocol="finqa-numeric-common-program-v2",
+        program_format=args.program_format,
         split=args.split,
         routes=args.routes,
         limit=args.limit,
@@ -306,8 +321,22 @@ if __name__ == "__main__":
         generation={
             key: value
             for key, value in settings["generation"]["options"].items()
-            if key not in {"api_key", "headers"}
+            if key
+            in {
+                "endpoint",
+                "model",
+                "temperature",
+                "max_tokens",
+                "json_mode",
+                "structured_outputs",
+                "timeout",
+                "api_key_env",
+                "token_limit_parameter",
+            }
         },
+        generation_options_sha256=hashlib.sha256(
+            json.dumps(settings["generation"], sort_keys=True).encode()
+        ).hexdigest(),
         sha256={
             str(path.relative_to(ROOT))
             if path.is_relative_to(ROOT)

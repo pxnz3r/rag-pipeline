@@ -323,3 +323,60 @@ def test_retrieval_and_navigation_keep_numeric_boundary_context(tmp_path):
         read = Navigation(index).read("report.txt", "text", start=98, chars=2)
         assert read["source"]["text"] == "12"
         assert numeric_catalog([Hit(**read["source"])]) == {}
+
+
+def test_unicode_minus_thousands_and_scientific_notation():
+    from rag_pipeline.reasoning import numeric_catalog
+
+    text = "Balance − 1\u202f234.50 USD; scale 1e−3."
+    hit = Hit("unicode", "report", "row", 0, len(text), text, {}, 0)
+    catalog = numeric_catalog([hit])
+    assert [entry["value"] for entry in catalog.values()] == ["− 1\u202f234.50", "1e−3"]
+    assert Decimal(
+        execute_program(
+            dict(steps=[dict(op="identity", args=[dict(operand="N0")])]), [hit]
+        ).value
+    ) == Decimal("-1234.5")
+    assert Decimal(
+        execute_program(
+            dict(steps=[dict(op="identity", args=[dict(operand="N1")])]), [hit]
+        ).value
+    ) == Decimal(".001")
+    with pytest.raises(ValueError, match="absent"):
+        execute_program(
+            dict(
+                steps=[
+                    dict(
+                        op="identity",
+                        args=[
+                            dict(
+                                source_id="unicode",
+                                quote="1\u202f234.50",
+                                value="1234.50",
+                            )
+                        ],
+                    )
+                ]
+            ),
+            [hit],
+        )
+
+
+def test_decimal_doses_attached_units_and_identifier_boundaries():
+    from rag_pipeline.reasoning import numeric_catalog
+
+    text = "Dose .5mg then 12mcg; identifier A125 and 123abc; values 100, 200."
+    hit = Hit("dose", "report", "row", 0, len(text), text, {}, 0)
+    assert [entry["value"] for entry in numeric_catalog([hit]).values()] == [
+        ".5",
+        "12",
+        "100",
+        "200",
+    ]
+
+
+def test_deep_model_json_fails_as_validation_error():
+    from rag_pipeline.reasoning import parse_program
+
+    with pytest.raises(ValueError, match="nesting"):
+        parse_program("[" * 2000 + "0" + "]" * 2000)

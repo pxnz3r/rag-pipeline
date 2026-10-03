@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation, localcontext
 
-from .answers import NUMBER, _pack_evidence
+from .answers import CLAIM_NUMBER, UNIT, _number_spelling, _pack_evidence
 from .index import Hit
 
 ARITIES = {
@@ -41,11 +41,9 @@ class ProgramAnswer:
 def _decimal(value):
     if not isinstance(value, str) or not 1 <= len(value) <= 100:
         raise ValueError("Numeric operands require bounded explicit strings")
-    token = value.replace(",", "").strip()
+    token = value.strip()
     percent = token.endswith("%")
-    token = token.removesuffix("%").strip()
-    if token.startswith("(") and token.endswith(")"):
-        token = "-" + token[1:-1]
+    token = _number_spelling(token.removesuffix("%").strip())
     if not re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", token):
         raise ValueError("Invalid numeric operand")
     number = Decimal(token)
@@ -63,7 +61,19 @@ def numeric_catalog(sources):
         guarded = hit.source_prefix + hit.text + hit.source_suffix
         offset = len(hit.source_prefix)
         limit = offset + len(hit.text)
-        for match in NUMBER.finditer(guarded):
+        for match in CLAIM_NUMBER.finditer(guarded):
+            before = guarded[match.start() - 1 : match.start()] if match.start() else ""
+            after = guarded[match.end() :]
+            if before and (before.isalnum() or before in "_.,"):
+                continue
+            if (
+                after
+                and (after[0].isalnum() or after[0] == "_")
+                and not UNIT.match(after)
+            ):
+                continue
+            if len(after) > 1 and after[0] in ".," and after[1].isdigit():
+                continue
             if match.start() < offset or match.end() > limit:
                 continue
             start = match.start() - offset
@@ -113,6 +123,24 @@ def parse_program(raw):
     if not isinstance(raw, str) or len(raw) > 50000:
         raise ValueError("Invalid program response size")
 
+    depth, quoted, escaped = 0, False, False
+    for char in raw:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                quoted = False
+        elif char == '"':
+            quoted = True
+        elif char in "[{":
+            depth += 1
+            if depth > 64:
+                raise ValueError("Program exceeds JSON nesting budget")
+        elif char in "]}":
+            depth -= 1
+
     def invalid(value):
         raise ValueError("Non-finite JSON program number")
 
@@ -124,13 +152,16 @@ def parse_program(raw):
             result[key] = value
         return result
 
-    result = json.loads(
-        raw,
-        parse_float=str,
-        parse_int=str,
-        parse_constant=invalid,
-        object_pairs_hook=unique,
-    )
+    try:
+        result = json.loads(
+            raw,
+            parse_float=str,
+            parse_int=str,
+            parse_constant=invalid,
+            object_pairs_hook=unique,
+        )
+    except RecursionError:
+        raise ValueError("Program exceeds JSON nesting budget") from None
     if isinstance(result, dict) and isinstance(result.get("steps"), list):
         for step in result["steps"]:
             if isinstance(step, dict) and isinstance(step.get("args"), list):
@@ -376,7 +407,13 @@ PROGRAM_SYSTEM = (
 
 
 def reason_from_sources(
-    question, sources, *, generate, max_evidence_chars=12000, max_attempts=1
+    question,
+    sources,
+    *,
+    generate,
+    max_evidence_chars=12000,
+    max_attempts=1,
+    program_format="steps",
 ):
     if (
         not callable(generate)
@@ -390,6 +427,11 @@ def reason_from_sources(
         raise ValueError(
             "Reasoning requires a question, configured generator and bounded attempts"
         )
+    if program_format not in {"steps", "expression"}:
+        raise ValueError("Unknown program format")
+    from .expressions import EXPRESSION_SYSTEM, execute_expression, expression_schema
+
+    system = EXPRESSION_SYSTEM if program_format == "expression" else PROGRAM_SYSTEM
     hits = _pack_evidence(sources, max_evidence_chars)
     if not hits:
         return ProgramAnswer("no_evidence")
@@ -400,19 +442,28 @@ def reason_from_sources(
         try:
             raw = (
                 generate.generate_structured(
-                    PROGRAM_SYSTEM,
+                    system,
                     json.dumps(payload),
-                    program_schema(hits, catalog=True),
+                    expression_schema(hits)
+                    if program_format == "expression"
+                    else program_schema(hits, catalog=True),
                 )
                 if getattr(generate, "structured_outputs", False)
-                else generate(PROGRAM_SYSTEM, json.dumps(payload))
+                else generate(system, json.dumps(payload))
             )
             if not isinstance(raw, str) or len(raw) > 50000:
                 raise ValueError("Invalid program response size")
             program = parse_program(raw)
-            if program == {"steps": []}:
+            expected = {"expression"} if program_format == "expression" else {"steps"}
+            if set(program) != expected:
+                raise ValueError("Invalid program response fields")
+            if program == {"steps": []} or program == {"expression": None}:
                 return ProgramAnswer("abstained", sources=hits, attempts=attempt)
-            result = execute_program(program, hits)
+            result = (
+                execute_expression(program["expression"], hits)
+                if program_format == "expression"
+                else execute_program(program, hits)
+            )
             return ProgramAnswer(
                 result.status, result.value, result.sources, result.steps, attempt
             )
@@ -473,6 +524,7 @@ def reason(
     max_evidence_chars=12000,
     max_attempts=1,
     route="retrieval",
+    program_format="steps",
     **search_options,
 ):
     if route not in {"retrieval", "context", "auto"}:
@@ -497,6 +549,7 @@ def reason(
             generate=generate,
             max_evidence_chars=max_evidence_chars,
             max_attempts=max_attempts,
+            program_format=program_format,
         ),
         route=selected_route,
     )

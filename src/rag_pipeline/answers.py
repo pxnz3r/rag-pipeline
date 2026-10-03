@@ -11,15 +11,12 @@ from decimal import Decimal, InvalidOperation, localcontext
 
 from .index import Hit
 
-DIGITS = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][+-]?\d+)?"
-NUMBER = re.compile(
-    r"(?<![\w.,])(?:\([+-]?" + DIGITS + r"\)|[+-]?" + DIGITS + r")(?![\w,]|\.\d)"
-)
+DIGITS = r"(?:(?:\d{1,3}(?:[,\u00a0\u2009\u202f]\d{3})+|\d+)(?:\.\d+)?|\.\d+)(?:[eE][+\-\u2212]?\d+)?"
+SIGNED = r"(?:[+\-\u2212][ \t]*)?" + DIGITS
+NUMERIC = r"(?:\([ \t]*" + SIGNED + r"[ \t]*\)|" + SIGNED + r")"
+NUMBER = re.compile(r"(?<![\w.,])" + NUMERIC + r"(?![\w,]|\.\d)")
+CLAIM_NUMBER = re.compile(NUMERIC)
 
-
-CLAIM_NUMBER = re.compile(
-    r"\(?[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][+-]?\d+)?\)?"
-)
 UNIT = re.compile(
     r"\b(?:(?:thousand|million|billion|trillion|percent)s?|basis points?|bps|USD|EUR|GBP|JPY|CNY|CHF|AUD|CAD|INR|(?:mg|mcg|[µμu]g|g|mmol|mEq)/(?:kg|mL|L)|milligrams?|micrograms?|kilograms?|grams?|millilit(?:er|re)s?|lit(?:er|re)s?|mg|mcg|[µμu]g|kg|g|mL|L|mmol|mEq|mmHg|IU|bpm|milliseconds?|seconds?|minutes?|hours?|days?|weeks?|months?|years?|ms|sec|min|hr)\b|[%$€£]",
     re.I,
@@ -47,11 +44,27 @@ UNIT_ALIASES = {
 }
 
 
+def _number_spelling(token):
+    token = token.translate(
+        str.maketrans(
+            {
+                ",": "",
+                "\u00a0": "",
+                "\u2009": "",
+                "\u202f": "",
+                "\u2212": "-",
+                " ": "",
+                "\t": "",
+            }
+        )
+    )
+    if token.startswith("(") and token.endswith(")"):
+        token = "-" + token[1:-1].lstrip("+-")
+    return token
+
+
 def _numbers(text):
-    return {
-        Decimal(n.replace(",", "").replace("(", "-").replace(")", ""))
-        for n in CLAIM_NUMBER.findall(text)
-    }
+    return {Decimal(_number_spelling(n)) for n in CLAIM_NUMBER.findall(text)}
 
 
 def _units(text):
@@ -307,9 +320,7 @@ def calculate(operation: str, operands: list[Operand], sources: list[Hit]) -> di
             raise ValueError("Unit is absent from operand quote")
         if item.value not in NUMBER.findall(item.quote):
             raise ValueError("Operand value is absent from quote")
-        spelling = item.value.replace(",", "")
-        if spelling.startswith("(") and spelling.endswith(")"):
-            spelling = "-" + spelling[1:-1]
+        spelling = _number_spelling(item.value)
         try:
             value = Decimal(spelling)
         except InvalidOperation as exc:

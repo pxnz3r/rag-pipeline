@@ -104,3 +104,53 @@ def test_generation_schema_is_explicit_and_sent_unchanged(server):
         ChatServer(endpoint, model="operator-model").generate_structured(
             "system", "{}", schema
         )
+
+
+def test_model_specific_generation_options_preserve_contract(server):
+    from rag_pipeline.providers import ChatServer
+
+    endpoint, requests, response = server
+    response.clear()
+    response["choices"] = [dict(message=dict(content="{}"))]
+    options = {
+        "seed": 42,
+        "top_p": 0.8,
+        "chat_template_kwargs": {"enable_thinking": True},
+    }
+    client = ChatServer(endpoint, model="operator-model", request_options=options)
+    options["seed"] = 99
+    assert client("system", "evidence") == "{}"
+    assert (
+        requests[-1]["seed"] == 42
+        and requests[-1]["chat_template_kwargs"]["enable_thinking"]
+    )
+    for options in [
+        {"model": "override"},
+        {"stream": True},
+        {"messages": []},
+        {"temperature": 0.2},
+        {"seed": float("nan")},
+    ]:
+        with pytest.raises(ValueError):
+            ChatServer(endpoint, model="operator-model", request_options=options)
+
+
+def test_generation_can_omit_temperature_and_select_token_parameter(server):
+    from rag_pipeline.providers import ChatServer
+
+    endpoint, requests, response = server
+    response.clear()
+    response["choices"] = [dict(message=dict(content="{}"))]
+    client = ChatServer(
+        endpoint,
+        model="operator-model",
+        temperature=None,
+        max_tokens=900,
+        token_limit_parameter="max_completion_tokens",
+    )
+    assert client("system", "evidence") == "{}"
+    assert requests[-1]["max_completion_tokens"] == 900
+    assert "max_tokens" not in requests[-1] and "temperature" not in requests[-1]
+    for key in ["messages", "model", "not-valid"]:
+        with pytest.raises(ValueError):
+            ChatServer(endpoint, model="operator-model", token_limit_parameter=key)

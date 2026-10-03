@@ -108,6 +108,9 @@ def main() -> int:
         if name == "reason":
             query.add_argument("--max-attempts", type=int, default=1)
             query.add_argument(
+                "--program-format", choices=["steps", "expression"], default="steps"
+            )
+            query.add_argument(
                 "--route", choices=["retrieval", "context", "auto"], default="retrieval"
             )
         if name == "calculate":
@@ -288,6 +291,7 @@ def main() -> int:
                                 ),
                                 max_attempts=args.max_attempts,
                                 route=args.route,
+                                program_format=args.program_format,
                                 **opts,
                             )
                         )

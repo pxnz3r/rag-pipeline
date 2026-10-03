@@ -46,6 +46,36 @@ def _nonfinite(value):
     raise ValueError("Non-finite JSON number: " + value)
 
 
+def row_text(headers, values):
+    """Deterministic column labels; numeric spellings are preserved verbatim."""
+    if len(headers) != len(values):
+        raise ValueError("Table row has the wrong column count")
+    return "\n".join(
+        f"{header}: {value}" if header else str(value)
+        for header, value in zip(headers, values)
+    )
+
+
+def _bounded_json(obj, limit):
+    parts, size = [], 0
+    for part in json.JSONEncoder(ensure_ascii=False, indent=2).iterencode(obj):
+        size += len(part.encode("utf-8"))
+        if size > limit:
+            raise ValueError("Normalized extraction exceeds 20 MiB")
+        parts.append(part)
+    return "".join(parts)
+
+
+def _bounded_sections(pairs):
+    result, size = [], 0
+    for locator, text in pairs:
+        size += len(text.encode("utf-8"))
+        if size > MAX_BYTES:
+            raise ValueError("Normalized extraction exceeds 20 MiB")
+        result.append((locator, text))
+    return result
+
+
 def document(path: Path, root: Path, previous: str | None = None) -> Document:
     # Read one immutable snapshot so the fingerprint always describes parsed bytes.
     if path.is_symlink() or path.stat().st_size > MAX_BYTES:
@@ -81,18 +111,17 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
                 or any(not h for h in header)
             ):
                 raise ValueError("CSV requires unique nonempty column headers")
-            sections = []
+            sections, extracted_bytes = [], 0
             for row_number, row in enumerate(rows, 2):
                 if not row:
                     continue
                 if len(row) != len(header):
                     raise ValueError(f"CSV row {row_number} has the wrong column count")
-                sections.append(
-                    (
-                        f"row {row_number}",
-                        "\n".join(f"{h}: {v}" for h, v in zip(header, row)),
-                    )
-                )
+                rendered = row_text(header, row)
+                extracted_bytes += len(rendered.encode("utf-8"))
+                if extracted_bytes > MAX_BYTES:
+                    raise ValueError("Normalized extraction exceeds 20 MiB")
+                sections.append((f"row {row_number}", rendered))
         elif suffix in {".json", ".jsonl"}:
             objects = (
                 [
@@ -110,12 +139,14 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
             objects = objects if isinstance(objects, list) else [objects]
             # Explicit keys, original numeric spellings for JSON string values, and
             # stable row locators. JSON numeric lexical spelling may be normalized.
-            sections = [
-                (f"record {i}", json.dumps(obj, ensure_ascii=False, indent=2))
-                for i, obj in enumerate(objects, 1)
-            ]
+            sections, extracted_bytes = [], 0
+            for i, obj in enumerate(objects, 1):
+                rendered = _bounded_json(obj, MAX_BYTES - extracted_bytes)
+                extracted_bytes += len(rendered.encode("utf-8"))
+                sections.append((f"record {i}", rendered))
         else:
             sections = [("text", text)]
+    sections = _bounded_sections(sections)
     if any("\x00" in text for _, text in sections):
         raise ValueError(
             "Extracted text contains NUL characters; convert the source first"

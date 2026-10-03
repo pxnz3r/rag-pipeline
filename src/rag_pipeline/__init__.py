@@ -12,12 +12,17 @@ __all__ = [
     "Navigation",
     "ProgramAnswer",
     "execute_program",
+    "execute_expression",
     "reason",
     "reason_from_sources",
 ]
 
 
 def __getattr__(name):
+    if name == "execute_expression":
+        from .expressions import execute_expression
+
+        return execute_expression
     if name in {"ProgramAnswer", "execute_program", "reason", "reason_from_sources"}:
         from . import reasoning
 

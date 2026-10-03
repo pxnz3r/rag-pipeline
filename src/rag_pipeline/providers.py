@@ -241,6 +241,8 @@ class ChatServer(_Server):
         temperature=0,
         json_mode=True,
         structured_outputs=False,
+        request_options=None,
+        token_limit_parameter="max_tokens",
         **kwargs,
     ):
         super().__init__(endpoint, model=model, **kwargs)
@@ -248,14 +250,52 @@ class ChatServer(_Server):
             not isinstance(max_tokens, int)
             or isinstance(max_tokens, bool)
             or not 1 <= max_tokens <= 100000
-            or not isinstance(temperature, (int, float))
-            or isinstance(temperature, bool)
-            or not math.isfinite(temperature)
-            or not 0 <= temperature <= 2
+            or temperature is not None
+            and (
+                not isinstance(temperature, (int, float))
+                or isinstance(temperature, bool)
+                or not math.isfinite(temperature)
+                or not 0 <= temperature <= 2
+            )
             or not isinstance(json_mode, bool)
             or not isinstance(structured_outputs, bool)
         ):
             raise ValueError("Invalid generation settings")
+        if (
+            not isinstance(token_limit_parameter, str)
+            or not token_limit_parameter.isidentifier()
+            or len(token_limit_parameter) > 64
+            or token_limit_parameter
+            in {"model", "messages", "temperature", "response_format", "stream", "n"}
+        ):
+            raise ValueError("Invalid token limit parameter")
+        self.token_limit_parameter = token_limit_parameter
+        options = {} if request_options is None else request_options
+        if (
+            not isinstance(options, dict)
+            or any(not isinstance(key, str) for key in options)
+            or set(options)
+            & {
+                "model",
+                "messages",
+                "response_format",
+                "temperature",
+                "max_tokens",
+                "max_completion_tokens",
+                "max_output_tokens",
+                token_limit_parameter,
+                "stream",
+                "n",
+            }
+        ):
+            raise ValueError("Invalid or reserved generation request option")
+        try:
+            encoded = json.dumps(options, allow_nan=False)
+        except (TypeError, ValueError):
+            raise ValueError("Generation request options require finite JSON") from None
+        if len(encoded) > 16000:
+            raise ValueError("Generation request options exceed 16KB")
+        self.request_options = json.loads(encoded)
         self.structured_outputs = structured_outputs
         self.max_tokens, self.temperature, self.json_mode = (
             max_tokens,
@@ -277,15 +317,17 @@ class ChatServer(_Server):
             )
         return self._generate(system, evidence, schema)
 
-    def _generate(self, system, evidence, schema=None):
+    def _payload(self, system, evidence, schema=None):
         payload = dict(
+            **self.request_options,
             messages=[
                 dict(role="system", content=system),
                 dict(role="user", content=evidence),
             ],
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
         )
+        payload[self.token_limit_parameter] = self.max_tokens
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
         if schema is not None:
             payload["response_format"] = {
                 "type": "json_schema",
@@ -297,10 +339,15 @@ class ChatServer(_Server):
             }
         elif self.json_mode:
             payload["response_format"] = {"type": "json_object"}
+        return payload
+
+    def _generate(self, system, evidence, schema=None):
         try:
-            content = self._request("/chat/completions", payload, "Generation")[
-                "choices"
-            ][0]["message"]["content"]
+            content = self._request(
+                "/chat/completions",
+                self._payload(system, evidence, schema),
+                "Generation",
+            )["choices"][0]["message"]["content"]
             if not isinstance(content, str) or len(content) > 50000:
                 raise ValueError("Invalid generation response")
             return content
