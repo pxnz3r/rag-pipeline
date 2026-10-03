@@ -69,6 +69,8 @@ def prepare(
             sorted(eligible, key=lambda r: r["id"]), count
         )
         records[split] = selected
+        if split == "dev" and exclude_test_reports:
+            prior_reports.update(row["filename"] for row in selected)
         provenance[split] = dict(
             url=url, sha256=HASHES[split], available=len(eligible), selected=count
         )

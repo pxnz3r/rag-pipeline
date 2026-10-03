@@ -1,0 +1,79 @@
+{
+  "input_sha256": "5d4da34f966b8d683e984d4f111ed32368ef4a735773ec9d0c491cd8540d4647",
+  "cases": 8,
+  "routes": {
+    "full-context": {
+      "cases": 8,
+      "direct_correct": 2,
+      "direct_accuracy": 0.25,
+      "program_correct": 5,
+      "program_accuracy": 0.625,
+      "program_wilson95": [
+        0.30574239460262737,
+        0.8631557141764026
+      ],
+      "corrected": 3,
+      "harmed": 0,
+      "program_minus_direct95": [
+        0.125,
+        0.75
+      ],
+      "statuses": {
+        "calculated": 6,
+        "abstained": 1,
+        "ValueError:Unsupported expression or ungrounded literal": 1
+      },
+      "valid_but_wrong": 1,
+      "generation_calls": 8,
+      "completion_tokens": 255,
+      "cached_prompt_tokens": 1920,
+      "prompt_tokens": 11503,
+      "median_total_seconds": 38.34244260699779,
+      "median_generation_seconds": 38.34055930600152,
+      "finish_reasons": {
+        "stop": 8
+      }
+    },
+    "retrieval": {
+      "cases": 8,
+      "direct_correct": 2,
+      "direct_accuracy": 0.25,
+      "program_correct": 5,
+      "program_accuracy": 0.625,
+      "program_wilson95": [
+        0.30574239460262737,
+        0.8631557141764026
+      ],
+      "corrected": 3,
+      "harmed": 0,
+      "program_minus_direct95": [
+        0.125,
+        0.75
+      ],
+      "statuses": {
+        "calculated": 8
+      },
+      "valid_but_wrong": 3,
+      "generation_calls": 8,
+      "completion_tokens": 265,
+      "cached_prompt_tokens": 1680,
+      "prompt_tokens": 11563,
+      "median_total_seconds": 42.32835107199935,
+      "median_generation_seconds": 42.317765447507554,
+      "finish_reasons": {
+        "stop": 8
+      }
+    }
+  },
+  "paired_route_differences": {
+    "retrieval minus full-context": {
+      "paired_cases": 8,
+      "mean": 0.0,
+      "bootstrap95": [
+        -0.375,
+        0.375
+      ]
+    }
+  },
+  "caveats": "Small numeric subset; common prompt and adapters, not a published upstream configuration. Wilson intervals are per route. Bootstrap differences resample paired cases. Persistent prompt cache affects latency; no SOTA or cross-domain conclusion."
+}

@@ -75,6 +75,12 @@ def summarize(path):
             completion_tokens=sum(
                 (c.get("usage") or {}).get("completion_tokens", 0) for c in calls
             ),
+            cached_prompt_tokens=sum(
+                (c.get("usage") or {})
+                .get("prompt_tokens_details", {})
+                .get("cached_tokens", 0)
+                for c in calls
+            ),
             prompt_tokens=sum(
                 (c.get("usage") or {}).get("prompt_tokens", 0) for c in calls
             ),
