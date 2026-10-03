@@ -81,6 +81,7 @@ def approved_constants(constants=None):
 def numeric_catalog(sources):
     """Bind short operand IDs to exact original numeric spans and nearby context."""
     catalog = {}
+    suffix_pattern = re.compile(r"\s*(%|percent\b)", re.I)
     if len({hit.id for hit in sources}) != len(sources):
         raise ValueError("Source IDs must be unique")
     for hit in sources:
@@ -89,13 +90,13 @@ def numeric_catalog(sources):
         limit = offset + len(hit.text)
         for match in CLAIM_NUMBER.finditer(guarded):
             before = guarded[match.start() - 1 : match.start()] if match.start() else ""
-            after = guarded[match.end() :]
+            after = guarded[match.end() : match.end() + 2]
             if before and (before.isalnum() or before in "_.,"):
                 continue
             if (
                 after
                 and (after[0].isalnum() or after[0] == "_")
-                and not UNIT.match(after)
+                and not UNIT.match(guarded[match.end() : match.end() + 64])
             ):
                 continue
             if len(after) > 1 and after[0] in ".," and after[1].isdigit():
@@ -104,19 +105,21 @@ def numeric_catalog(sources):
                 continue
             start = match.start() - offset
             end = match.end() - offset
-            suffix = re.match(r"\s*(%|percent\b)", guarded[match.end() :], re.I)
-            if suffix and match.end() + suffix.end() > limit:
+            suffix = suffix_pattern.match(guarded, match.end())
+            if suffix and suffix.end() > limit:
                 continue
             value = match.group()
             if suffix:
                 value += "%"
-                end += suffix.end()
+                end = suffix.end() - offset
             try:
                 _decimal(value)
             except ValueError:
                 continue
-            left = max(hit.text.rfind("\n", 0, start) + 1, start - 180)
-            right = hit.text.find("\n", end)
+            left = max(
+                hit.text.rfind("\n", max(0, start - 180), start) + 1, start - 180
+            )
+            right = hit.text.find("\n", end, end + 180)
             right = min(right if right >= 0 else len(hit.text), end + 180)
             catalog[f"N{len(catalog)}"] = dict(
                 source_id=hit.id,
@@ -131,16 +134,18 @@ def numeric_catalog(sources):
 def program_evidence(sources):
     """Annotate a model view; source text and execution provenance stay original."""
     catalog = numeric_catalog(sources)
+    grouped = {}
+    for key, item in catalog.items():
+        grouped.setdefault(item["source_id"], []).append((key, item))
     evidence = []
     for hit in sources:
-        text = hit.text
-        entries = [
-            (key, item) for key, item in catalog.items() if item["source_id"] == hit.id
-        ]
-        for key, item in reversed(entries):
+        parts, cursor = [], 0
+        for key, item in grouped.get(hit.id, []):
             offset = item["end"] - hit.start
-            text = text[:offset] + f" [{key}]" + text[offset:]
-        evidence.append(dict(id=hit.id, text=text))
+            parts.extend((hit.text[cursor:offset], f" [{key}]"))
+            cursor = offset
+        parts.append(hit.text[cursor:])
+        evidence.append(dict(id=hit.id, text="".join(parts)))
     return evidence
 
 

@@ -92,7 +92,9 @@ def response_schema(sources):
         return dict(
             type="object",
             properties=dict(
-                answer=dict(anyOf=[dict(type="string"), dict(type="null")])
+                answer=dict(
+                    anyOf=[dict(type="number"), dict(type="string"), dict(type="null")]
+                )
             ),
             required=["answer"],
             additionalProperties=False,
