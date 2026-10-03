@@ -64,8 +64,12 @@ def evaluate(
     repeats=3,
     split=None,
     reranker=None,
+    contextual=False,
+    vector_cache_bytes=64 * 1024 * 1024,
+    cache_reranker=False,
+    distinct_documents=False,
 ):
-    if not 1 <= repeats <= 100:
+    if not 1 <= repeats <= 100 or not isinstance(cache_reranker, bool):
         raise ValueError("Repeats must be between 1 and 100")
     data = json.loads(Path(dataset).read_text(encoding="utf-8"))
     docs, queries = data["documents"], data["queries"]
@@ -99,21 +103,40 @@ def evaluate(
             (corpus / (filename + ".meta.json")).write_text(
                 json.dumps(doc.get("metadata", {}))
             )
-        with Index(root / "index.sqlite", embedder, reranker) as index:
+        with Index(
+            root / "index.sqlite",
+            embedder,
+            reranker,
+            vector_cache_bytes=vector_cache_bytes,
+        ) as index:
             started = time.perf_counter()
-            stats = index.ingest(corpus)
+            stats = index.ingest(corpus, contextual=contextual)
             index_seconds = time.perf_counter() - started
+            reranker_index_seconds = 0.0
+            token_cache = None
+            if cache_reranker:
+                started = time.perf_counter()
+                token_cache = index.prepare_reranker_cache()
+                reranker_index_seconds = time.perf_counter() - started
             rankings, samples, negative_correct, spans = {}, [], 0, []
             # One global warm-up; model loading is external, index encoding included.
             first = queries[0]
             index.search(
-                first["question"], filters=first.get("filters"), mode=mode, k=k
+                first["question"],
+                filters=first.get("filters"),
+                mode=mode,
+                k=k,
+                distinct_documents=distinct_documents,
             )
             for query in queries:
                 for _ in range(repeats):
                     started = time.perf_counter()
                     hits = index.search(
-                        query["question"], filters=query.get("filters"), mode=mode, k=k
+                        query["question"],
+                        filters=query.get("filters"),
+                        mode=mode,
+                        k=k,
+                        distinct_documents=distinct_documents,
                     )
                     samples.append((time.perf_counter() - started) * 1000)
                 # Judgment unit is document, not chunk: deduplicate explicitly.
@@ -143,8 +166,16 @@ def evaluate(
                 "skipped_query_ids": data.get("skipped_query_ids", []),
                 "limitations": data.get("limitations"),
                 "mode": mode,
+                "effective_mode": "lexical"
+                if mode == "hybrid" and embedder is None
+                else mode,
+                "contextual": contextual,
+                "distinct_documents": distinct_documents,
+                "vector_cache_bytes": vector_cache_bytes,
                 "embedding": stats["embedding"],
                 "reranker": getattr(reranker, "signature", None),
+                "reranker_cache": token_cache,
+                "reranker_index_seconds": reranker_index_seconds,
                 "split": split,
                 "documents": len(docs),
                 "chunks": stats["chunks"],

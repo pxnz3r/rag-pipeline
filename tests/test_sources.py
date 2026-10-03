@@ -93,3 +93,45 @@ def test_nul_text_fails_before_sqlite_window_truncation(tmp_path):
     path.write_text("Revenue\x00USD 125 million")
     with pytest.raises(ValueError, match="NUL"):
         document(path, tmp_path)
+
+
+def test_heading_hierarchy_ignores_fenced_code():
+    from rag_pipeline.sources import contextual_spans
+
+    text = (
+        "# Parent\n## First\n"
+        + "First passage. " * 30
+        + "\n```python\n# Forged heading\n```\n"
+        + "More first passage. " * 30
+        + "\n## Second\n"
+        + "Second passage. " * 30
+    )
+    result = list(contextual_spans(text, 100, 0, True))
+    assert any(context == "Parent > First" for _, _, context in result)
+    assert any(context == "Parent > Second" for _, _, context in result)
+    assert all("Forged" not in context for _, _, context in result)
+    assert all(text[a:b] and len(context) <= 300 for a, b, context in result)
+
+
+@pytest.mark.parametrize("spelling", ["NaN", "Infinity", "-Infinity"])
+def test_nonfinite_json_numbers_are_not_evidence(tmp_path, spelling):
+    path = tmp_path / "invalid.json"
+    path.write_text('{"value":' + spelling + "}")
+    with pytest.raises(ValueError, match="Non-finite"):
+        document(path, tmp_path)
+
+
+def test_context_headings_stream_without_per_heading_retention():
+    import tracemalloc
+
+    from rag_pipeline.sources import contextual_spans
+
+    text = "# Repeated heading\n" * 40000
+    tracemalloc.start()
+    try:
+        result = list(contextual_spans(text, 900, 100, True))
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert result and all(context == "Repeated heading" for _, _, context in result)
+    assert peak < len(text) * 4
