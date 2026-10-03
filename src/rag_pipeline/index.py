@@ -59,6 +59,9 @@ class Hit:
     metadata: dict
     score: float
     context: str = ""
+    source_revision: str = ""
+    source_prefix: str = ""
+    source_suffix: str = ""
 
     def to_dict(self):
         return asdict(self)
@@ -652,7 +655,7 @@ class Index:
                 ids = order[offset : offset + 256]
                 placeholders = ",".join("?" for _ in ids)
                 for row in self.db.execute(
-                    "SELECT c.id,c.section,c.start,c.end,c.context,s.document,s.locator,s.chars,d.metadata FROM chunks c "
+                    "SELECT c.id,c.section,c.start,c.end,c.context,s.document,s.locator,s.chars,d.metadata,d.fingerprint FROM chunks c "
                     "JOIN sections s ON s.id=c.section JOIN documents d ON d.id=s.document WHERE c.id IN ("
                     + placeholders
                     + ")",
@@ -697,6 +700,11 @@ class Index:
                     continue
                 selected.append((row["section"], start, end))
                 documents.add(row["document"])
+                guarded_start, guarded_end = (
+                    max(0, start - 100),
+                    min(row["chars"], end + 100),
+                )
+                guarded = self._text(row["section"], guarded_start, guarded_end)
                 hits.append(
                     Hit(
                         cid,
@@ -704,10 +712,13 @@ class Index:
                         row["locator"],
                         start,
                         end,
-                        self._text(row["section"], start, end),
+                        guarded[start - guarded_start : end - guarded_start],
                         json.loads(row["metadata"]),
                         scores[cid],
                         row["context"],
+                        row["fingerprint"],
+                        guarded[: start - guarded_start],
+                        guarded[end - guarded_start :],
                     )
                 )
                 if len(hits) == k:

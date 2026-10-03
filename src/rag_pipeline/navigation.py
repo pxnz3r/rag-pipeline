@@ -136,10 +136,19 @@ class Navigation:
 
         def execute():
             row = self.index.db.execute(
-                "SELECT s.chars,d.metadata,substr(s.text,?,?) text FROM sections s "
+                "SELECT s.chars,d.metadata,d.fingerprint,substr(s.text,?,?) text,substr(s.text,?,?) source_prefix,substr(s.text,?,100) source_suffix FROM sections s "
                 "JOIN documents d ON d.id=s.document WHERE d.id=? AND s.locator=?"
                 + clause,
-                [start + 1, chars, document, locator, *args],
+                [
+                    start + 1,
+                    chars,
+                    max(0, start - 100) + 1,
+                    min(start, 100),
+                    start + chars + 1,
+                    document,
+                    locator,
+                    *args,
+                ],
             ).fetchone()
             if row is None:
                 return dict(status="not_found")
@@ -155,6 +164,9 @@ class Navigation:
                 row["text"],
                 json.loads(row["metadata"]),
                 0.0,
+                source_revision=row["fingerprint"],
+                source_prefix=row["source_prefix"],
+                source_suffix=row["source_suffix"],
             )
             return dict(
                 status="evidence",

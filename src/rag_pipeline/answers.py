@@ -148,17 +148,51 @@ def answer(
         )
 
 
-def _answer_evidence(
-    question, retrieved, *, generate=None, max_evidence_chars=12000, source_key=None
-):
-    """Shared citation validation for trusted retrieval/read tool outputs."""
+def _grounded_quote(source, quote):
+    """A quoted numeric token must be complete in the original source window."""
+    guarded = source.source_prefix + source.text + source.source_suffix
+    prefix = len(source.source_prefix)
+    numbers = {(m.start(), m.end()) for m in CLAIM_NUMBER.finditer(guarded)}
+    quoted = [(m.start(), m.end()) for m in CLAIM_NUMBER.finditer(quote)]
+    return any(
+        all(
+            (prefix + occurrence.start() + start, prefix + occurrence.start() + end)
+            in numbers
+            for start, end in quoted
+        )
+        for occurrence in re.finditer(re.escape(quote), source.text)
+    )
+
+
+def _pack_evidence(retrieved, max_evidence_chars):
+    if (
+        not isinstance(max_evidence_chars, int)
+        or isinstance(max_evidence_chars, bool)
+        or not 100 <= max_evidence_chars <= 50000
+    ):
+        raise ValueError("Evidence budget must be between 100 and 50000 characters")
     hits, remaining = [], max_evidence_chars
     for hit in retrieved:
         if remaining <= 0:
             break
         text = hit.text[:remaining]
-        hits.append(replace(hit, text=text, end=hit.start + len(text)))
+        hits.append(
+            replace(
+                hit,
+                text=text,
+                end=hit.start + len(text),
+                source_suffix=(hit.text[len(text) :] + hit.source_suffix)[:100],
+            )
+        )
         remaining -= len(text)
+    return hits
+
+
+def _answer_evidence(
+    question, retrieved, *, generate=None, max_evidence_chars=12000, source_key=None
+):
+    """Shared citation validation for trusted retrieval/read tool outputs."""
+    hits = _pack_evidence(retrieved, max_evidence_chars)
     if not hits:
         return Answer("no_evidence", "", [])
     if source_key:
@@ -214,7 +248,7 @@ def _answer_evidence(
                     not source
                     or not isinstance(quote, str)
                     or not quote.strip()
-                    or quote not in source.text
+                    or not _grounded_quote(source, quote)
                 ):
                     raise ValueError("Unverifiable citation")
                 quotes.append(quote)
@@ -262,7 +296,7 @@ def calculate(operation: str, operands: list[Operand], sources: list[Hit]) -> di
         if (
             not source
             or not item.quote.strip()
-            or item.quote not in source.text
+            or not _grounded_quote(source, item.quote)
             or not item.unit.strip()
         ):
             raise ValueError(

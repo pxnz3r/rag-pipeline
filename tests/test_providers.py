@@ -82,3 +82,25 @@ def test_embedding_server_rejects_corrupt_protocol_without_response_leaks(server
 def test_embedding_server_requires_explicit_endpoint_and_revision(endpoint, revision):
     with pytest.raises(ValueError):
         EmbeddingServer(endpoint, model="qwen3", revision=revision)
+
+
+def test_generation_schema_is_explicit_and_sent_unchanged(server):
+    from rag_pipeline import Hit
+    from rag_pipeline.providers import ChatServer
+    from rag_pipeline.reasoning import program_schema
+
+    endpoint, requests, response = server
+    response.clear()
+    response["choices"] = [dict(message=dict(content='{"steps":[]}'))]
+    text = "Revenue 125 and 100."
+    schema = program_schema(
+        [Hit("source", "doc", "text", 0, len(text), text, {}, 0)], catalog=True
+    )
+    client = ChatServer(endpoint, model="operator-model", structured_outputs=True)
+    assert client.generate_structured("system", "{}", schema) == '{"steps":[]}'
+    assert requests[-1]["response_format"]["json_schema"]["schema"] == schema
+    assert requests[-1]["model"] == "operator-model"
+    with pytest.raises(ValueError, match="capability"):
+        ChatServer(endpoint, model="operator-model").generate_structured(
+            "system", "{}", schema
+        )

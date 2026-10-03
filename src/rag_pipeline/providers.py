@@ -240,6 +240,7 @@ class ChatServer(_Server):
         max_tokens=1500,
         temperature=0,
         json_mode=True,
+        structured_outputs=False,
         **kwargs,
     ):
         super().__init__(endpoint, model=model, **kwargs)
@@ -252,8 +253,10 @@ class ChatServer(_Server):
             or not math.isfinite(temperature)
             or not 0 <= temperature <= 2
             or not isinstance(json_mode, bool)
+            or not isinstance(structured_outputs, bool)
         ):
             raise ValueError("Invalid generation settings")
+        self.structured_outputs = structured_outputs
         self.max_tokens, self.temperature, self.json_mode = (
             max_tokens,
             temperature,
@@ -261,6 +264,20 @@ class ChatServer(_Server):
         )
 
     def __call__(self, system, evidence):
+        return self._generate(system, evidence)
+
+    def generate_structured(self, system, evidence, schema):
+        if (
+            not self.structured_outputs
+            or not isinstance(schema, dict)
+            or len(json.dumps(schema)) > 64000
+        ):
+            raise ValueError(
+                "Explicit structured-output capability and bounded schema required"
+            )
+        return self._generate(system, evidence, schema)
+
+    def _generate(self, system, evidence, schema=None):
         payload = dict(
             messages=[
                 dict(role="system", content=system),
@@ -269,7 +286,16 @@ class ChatServer(_Server):
             temperature=self.temperature,
             max_tokens=self.max_tokens,
         )
-        if self.json_mode:
+        if schema is not None:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "grounded_program",
+                    "strict": True,
+                    "schema": schema,
+                },
+            }
+        elif self.json_mode:
             payload["response_format"] = {"type": "json_object"}
         try:
             content = self._request("/chat/completions", payload, "Generation")[
