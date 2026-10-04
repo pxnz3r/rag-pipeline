@@ -1,0 +1,79 @@
+{
+  "protocol": "finqa-numeric-common-program-v1",
+  "split": "test",
+  "routes": [
+    "retrieval",
+    "full-context",
+    "iterative-2"
+  ],
+  "limit": 24,
+  "evidence_budget": 6500,
+  "route_order": "counterbalanced cyclic rotation by record index; persistent model cache, cached tokens reported",
+  "search": {
+    "mode": "hybrid",
+    "k": 5,
+    "context_chars": 900,
+    "candidates": 40
+  },
+  "embedding": {
+    "kind": "python",
+    "factory": "rag_pipeline.embeddings:MiniLM",
+    "options": {}
+  },
+  "runtime": {
+    "generation": {
+      "repository": "TheStageAI/Qwen3.5-4B-GGUF",
+      "revision": "9e325bb0db1f4eb8a51450142227bb6a7e4d37f1",
+      "file": "Qwen3.5-4B-M-TS-Q4_K_M.gguf",
+      "bytes": 2385660192,
+      "sha256": "f8e45572b9cc35161d4772b09bccfd383fe0bb03fc6d69b40a9138731302290b"
+    },
+    "llama_cpp_commit": "99b95488cac0f00ce3f05af113a8c1e287753f87",
+    "server_args": {
+      "threads": 2,
+      "batch_threads": 2,
+      "context_tokens": 8192,
+      "batch": 512,
+      "ubatch": 512,
+      "parallel": 1,
+      "reasoning": "off",
+      "jinja": true
+    },
+    "cpu_quota": "2 CPU equivalents",
+    "memory_limit_bytes": 8589934592,
+    "gpu": false,
+    "model_scope": "Research fixture chosen for this CPU session; no production default or frontier-model comparison"
+  },
+  "prompt_sha256": "db5cb0efd4fd18aaa52402f69addcb6d2137c0f1e72375b8b603c4fc552fcbb3",
+  "generation": {
+    "endpoint": "http://127.0.0.1:8083/v1",
+    "model": "qa-research-model",
+    "max_tokens": 500,
+    "temperature": 0,
+    "timeout": 600,
+    "structured_outputs": true
+  },
+  "sha256": {
+    "records.json": "92caf6425f25d0329ed328e36babc7522f48599583e2b92cd3a0db8ae1f93a90",
+    "mapping.json": "3c74075b69ba4113bcc2ae174be3ab67739ace8f67c3bc44860019b108507140",
+    "index.sqlite": "f004b1e91f313f259cf4f290e3c90d418cb07f9416af750440ed98a467a65e4a",
+    "benchmark_qa.py": "359e7cef902740aec6487f5d57e77cd4d1c33f3c73855bf68c4693c62a8b3920",
+    "__init__.py": "d8287784b560774c47ab40cfe572e8c2a028b0b19d3286e7b948ae5c728712a6",
+    "answers.py": "fc8b4d17e6f33ab145666bc902ed799b8e032229ead1a8b5ee23d0d2510a32c0",
+    "cli.py": "00747868f7ef38cda7c3bca5772073edd87331ff46d273f760a1459b2fb8cbaf",
+    "configuration.py": "316ec6ff53b16767ad5256c820e32f1c984eae6210c107d2f9605adc3d260268",
+    "embeddings.py": "911844251b3c4b944b30ace38c1b27d162186d6ef2bd50447c9572b27ad9d5a4",
+    "evaluation.py": "0b6f8910becd747483eefa3e58d6de45524e1c6bb2d1c7c835bb146c53ec0b0c",
+    "index.py": "80e66581022585139c6126a84e4456dbcd0b0fa5fbb4d344f4b478824f161dcb",
+    "navigation.py": "5e9335fab9d07ac6fb102f3b7aa0379a9e3d559ee820619069931d0d5d834648",
+    "pdf_worker.py": "2b6a3434fe67cbc585a0d07dd515fa09c9f50214f0a8a451706526b37fbee166",
+    "providers.py": "76eb984f5ec22baf23c4f75c78f66c8265d701c08ead617fe5097500148e941d",
+    "reasoning.py": "9473f1ed56df399131b126a4284acc7c37f236e1b8595ad373906d8bbda1a85b",
+    "retrieval_metrics.py": "b1d3e9e895368965c3e62a3d5670e28c4be4fb26ad5efde95a2dc7fe6f30fc3c",
+    "sources.py": "6d0eec54a1a21ac49296a7d0abe419df75eeec01b4460e0fc5e0871952b8e92e",
+    "token_cache.py": "481a4e38d00e98a24a7025bff8e3996d1607af02e861a19c93b3bd4a05276e93",
+    "pipeline.py": "498e11071dcfc75590ccda51caa9abd200babdaf81a88a291e903022976b447c",
+    "active_pipeline.py": "3944b097098b5935fa0df921437669b01e663e083e87aa05cda7adfaa137d8b1"
+  },
+  "upstream_scope": "Actual unchanged AST-isolated BasicPipeline/SequentialPipeline/IterativePipeline classes, common custom adapters and prompt; no native published model configuration or official leaderboard score."
+}

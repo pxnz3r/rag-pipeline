@@ -135,3 +135,19 @@ def test_context_headings_stream_without_per_heading_retention():
         tracemalloc.stop()
     assert result and all(context == "Repeated heading" for _, _, context in result)
     assert peak < len(text) * 4
+
+
+def test_normalized_csv_and_json_expansion_is_bounded(tmp_path, monkeypatch):
+    import rag_pipeline.sources as sources
+
+    monkeypatch.setattr(sources, "MAX_BYTES", 256)
+    path = tmp_path / "wide.csv"
+    path.write_text("long_header_alpha,long_header_beta\n" + "1,2\n" * 20)
+    assert path.stat().st_size < 256
+    with pytest.raises(ValueError, match="Normalized extraction"):
+        sources.document(path, tmp_path)
+    path = tmp_path / "deep.json"
+    path.write_text("[" * 20 + "[1,2,3,4,5,6,7,8,9,10]" + "]" * 20)
+    assert path.stat().st_size < 256
+    with pytest.raises(ValueError, match="Normalized extraction"):
+        sources.document(path, tmp_path)

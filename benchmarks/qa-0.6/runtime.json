@@ -1,0 +1,26 @@
+{
+  "model": {
+    "model": "TheStageAI/Qwen3.5-4B-GGUF",
+    "revision": "9e325bb0db1f4eb8a51450142227bb6a7e4d37f1",
+    "file": "Qwen3.5-4B-M-TS-Q4_K_M.gguf",
+    "sha256": "f8e45572b9cc35161d4772b09bccfd383fe0bb03fc6d69b40a9138731302290b",
+    "license": "Apache-2.0 upstream Qwen3.5-4B; GGUF quantization by TheStageAI",
+    "runtime": "llama.cpp 99b95488cac0f00ce3f05af113a8c1e287753f87",
+    "scope": "Research fixture, not product model default"
+  },
+  "server_commit": "99b95488cac0f00ce3f05af113a8c1e287753f87",
+  "threads": 2,
+  "batch_threads": 2,
+  "cpu_quota_cores": 2,
+  "context_tokens": 8192,
+  "parallel_slots": 1,
+  "cache_ram_mib": 1024,
+  "reasoning_server": "auto, budget 256",
+  "reasoning_request": "enable_thinking=false",
+  "gpu": false,
+  "hardware_scope": "Managed CPU cloud session, roughly 9.7 GiB cgroup memory; no hosted model credentials supplied",
+  "upstream_flashrag_commit": "0e57de4394fdbc3133e352f0daff4b87cd7fff74",
+  "predeclared_test": "24 report-disjoint cases, retrieval and full-context, formula format, 6500 character budget, max_tokens1000, temperature0; paired direct estimate versus grounded execution; no test-driven tuning",
+  "development": "8 original dev cases with repeated table headers; development trial began before final defensive parser checks; recorded code hashes distinguish it from test",
+  "prior_trial": "Earlier 24-case cohort aborted after 10 route rows due to duplicate report views and two runtime OOM kills. All original cohort questions/reports excluded from final holdout. Those records remain a failed pilot, not a completed test."
+}

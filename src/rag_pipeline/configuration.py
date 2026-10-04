@@ -50,7 +50,7 @@ def load_config(path):
             "mode",
             "match",
         },
-        "answer": {"max_evidence_chars", "context_order"},
+        "answer": {"max_evidence_chars", "context_order", "reasoning_constants"},
     }.items():
         if set(config.get(name, {})) - keys:
             raise ValueError(f"Unknown {name} configuration option")

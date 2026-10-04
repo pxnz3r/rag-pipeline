@@ -12,6 +12,7 @@ from .answers import Operand, answer, calculate
 from .configuration import load_config, provider
 from .evaluation import evaluate
 from .index import Index
+from .reasoning import reason
 
 
 def main() -> int:
@@ -80,7 +81,7 @@ def main() -> int:
         action="store_true",
         help="Index extractive Markdown heading context.",
     )
-    for name in ("search", "ask", "calculate"):
+    for name in ("search", "ask", "calculate", "reason"):
         query = sub.add_parser(name)
         query.add_argument("question")
         query.add_argument("--filter", action="append", default=[], metavar="KEY=VALUE")
@@ -103,6 +104,14 @@ def main() -> int:
                 "--generate",
                 action="store_true",
                 help="Use the configured generation provider; default returns evidence.",
+            )
+        if name == "reason":
+            query.add_argument("--max-attempts", type=int, default=1)
+            query.add_argument(
+                "--program-format", choices=["steps", "expression"], default="steps"
+            )
+            query.add_argument(
+                "--route", choices=["retrieval", "context", "auto"], default="retrieval"
             )
         if name == "calculate":
             query.add_argument(
@@ -187,7 +196,7 @@ def main() -> int:
         if (
             (args.rerank or args.reranker or "reranker" in config)
             and args.command
-            in {"search", "ask", "calculate", "evaluate", "prepare-reranker"}
+            in {"search", "ask", "calculate", "reason", "evaluate", "prepare-reranker"}
             or args.command == "prepare-reranker"
         ):
             spec = (
@@ -198,14 +207,12 @@ def main() -> int:
             if spec is None:
                 raise ValueError("Reranking requires an explicit provider")
             reranker = provider(spec, "reranker")
-        if getattr(args, "generate", False):
+        if args.command == "reason" or getattr(args, "generate", False):
             if "generation" not in config:
-                raise ValueError(
-                    "--generate requires an explicit generation provider in --config"
-                )
+                raise ValueError("Generation requires an explicit provider in --config")
             generator = provider(config["generation"], "generation")
         if (
-            args.command in {"search", "ask", "calculate", "evaluate"}
+            args.command in {"search", "ask", "calculate", "reason", "evaluate"}
             and args.mode in {"dense", "hybrid"}
             and embedder is None
         ):
@@ -273,6 +280,24 @@ def main() -> int:
                         result = [
                             hit.to_dict() for hit in index.search(args.question, **opts)
                         ]
+                    elif args.command == "reason":
+                        result = asdict(
+                            reason(
+                                index,
+                                args.question,
+                                generate=generator,
+                                max_evidence_chars=config.get("answer", {}).get(
+                                    "max_evidence_chars", 12000
+                                ),
+                                max_attempts=args.max_attempts,
+                                route=args.route,
+                                program_format=args.program_format,
+                                constants=config.get("answer", {}).get(
+                                    "reasoning_constants"
+                                ),
+                                **opts,
+                            )
+                        )
                     elif args.command == "ask":
                         result = asdict(
                             answer(

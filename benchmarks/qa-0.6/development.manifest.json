@@ -1,0 +1,58 @@
+{
+  "protocol": "finqa-numeric-common-program-v2",
+  "program_format": "expression",
+  "split": "dev",
+  "routes": [
+    "retrieval",
+    "full-context"
+  ],
+  "limit": 8,
+  "evidence_budget": 6500,
+  "route_order": "counterbalanced cyclic rotation by record index; persistent model cache, cached tokens reported",
+  "search": {
+    "mode": "hybrid",
+    "k": 5,
+    "context_chars": 900,
+    "candidates": 40
+  },
+  "embedding": {
+    "kind": "python",
+    "factory": "rag_pipeline.embeddings:MiniLM",
+    "options": {}
+  },
+  "runtime": null,
+  "prompt_sha256": "0faa098a207a98409c52bae1b584af70b200d85c7c9b47c508bfea168b06f93e",
+  "generation": {
+    "endpoint": "http://127.0.0.1:8083/v1",
+    "model": "qa-research-model",
+    "max_tokens": 1000,
+    "temperature": 0,
+    "timeout": 600,
+    "structured_outputs": true
+  },
+  "generation_options_sha256": "07e2417fddc0310b89139a86eb19a766da02f6113e7f9d7596f7daab77f6acc0",
+  "sha256": {
+    "records.json": "df9696781abac9dfa91bf88f46598195b8d5d0186e26a3779187cba712567567",
+    "mapping.json": "caacf79af61eb9e7ede97ba17ddd53923ca36f028aa8c10fa6caa29be34c6746",
+    "index.sqlite": "3c310bc2a434049670a7376cb1fbb26191c677d3cbcb28923fb914d391cc8279",
+    "benchmark_qa.py": "93ee7bb449341f87e24ca77ce215ebf6199eb7b451f1749e87bb575100017be2",
+    "__init__.py": "bd3644bced9f39a8fec8c4cd342cacbf1a9446e1ac2a779ebd9939639e99b4d5",
+    "answers.py": "43c6fa47c50a22e3b43a898eee1ce4b7f700e647427e2e09dcf5d901a31f5a84",
+    "cli.py": "aa0c56f3bc471cc3f12e23543c9c1c914a79216cf4e4fdaac5be5f90c275d345",
+    "configuration.py": "316ec6ff53b16767ad5256c820e32f1c984eae6210c107d2f9605adc3d260268",
+    "embeddings.py": "911844251b3c4b944b30ace38c1b27d162186d6ef2bd50447c9572b27ad9d5a4",
+    "evaluation.py": "0b6f8910becd747483eefa3e58d6de45524e1c6bb2d1c7c835bb146c53ec0b0c",
+    "expressions.py": "13b48062accaf6fbdaee8128078cee37a77ebe8c0e8cd983b090830b95a600b8",
+    "index.py": "80e66581022585139c6126a84e4456dbcd0b0fa5fbb4d344f4b478824f161dcb",
+    "navigation.py": "5e9335fab9d07ac6fb102f3b7aa0379a9e3d559ee820619069931d0d5d834648",
+    "pdf_worker.py": "2b6a3434fe67cbc585a0d07dd515fa09c9f50214f0a8a451706526b37fbee166",
+    "providers.py": "b023b4f7de407f205c74083ac7aeea17ad183ddfc8977289efe542245805da5e",
+    "reasoning.py": "7ddd8bd9ce561bb2e17eeca9de106cebbadf62dbb89389eb7627808c2be8ea6b",
+    "retrieval_metrics.py": "b1d3e9e895368965c3e62a3d5670e28c4be4fb26ad5efde95a2dc7fe6f30fc3c",
+    "sources.py": "0999da70794a16374e216551f6e8fb2e3b1b52460c06f434a3fe0c07841da8ed",
+    "token_cache.py": "481a4e38d00e98a24a7025bff8e3996d1607af02e861a19c93b3bd4a05276e93",
+    "pipeline.py": "498e11071dcfc75590ccda51caa9abd200babdaf81a88a291e903022976b447c",
+    "active_pipeline.py": "3944b097098b5935fa0df921437669b01e663e083e87aa05cda7adfaa137d8b1"
+  },
+  "upstream_scope": "Actual unchanged AST-isolated BasicPipeline/SequentialPipeline/IterativePipeline classes, common custom adapters and prompt; no native published model configuration or official leaderboard score."
+}

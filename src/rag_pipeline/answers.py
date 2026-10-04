@@ -11,15 +11,12 @@ from decimal import Decimal, InvalidOperation, localcontext
 
 from .index import Hit
 
-DIGITS = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][+-]?\d+)?"
-NUMBER = re.compile(
-    r"(?<![\w.,])(?:\([+-]?" + DIGITS + r"\)|[+-]?" + DIGITS + r")(?![\w,]|\.\d)"
-)
+DIGITS = r"(?:(?:\d{1,3}(?:[,\u00a0\u2009\u202f]\d{3})+|\d+)(?:\.\d+)?|\.\d+)(?:[eE][+\-\u2212]?\d+)?"
+SIGNED = r"(?:[+\-\u2212][ \t]*)?" + DIGITS
+NUMERIC = r"(?:\([ \t]*" + SIGNED + r"[ \t]*\)|" + SIGNED + r")"
+NUMBER = re.compile(r"(?<![\w.,])" + NUMERIC + r"(?![\w,]|\.\d)")
+CLAIM_NUMBER = re.compile(NUMERIC)
 
-
-CLAIM_NUMBER = re.compile(
-    r"\(?[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][+-]?\d+)?\)?"
-)
 UNIT = re.compile(
     r"\b(?:(?:thousand|million|billion|trillion|percent)s?|basis points?|bps|USD|EUR|GBP|JPY|CNY|CHF|AUD|CAD|INR|(?:mg|mcg|[µμu]g|g|mmol|mEq)/(?:kg|mL|L)|milligrams?|micrograms?|kilograms?|grams?|millilit(?:er|re)s?|lit(?:er|re)s?|mg|mcg|[µμu]g|kg|g|mL|L|mmol|mEq|mmHg|IU|bpm|milliseconds?|seconds?|minutes?|hours?|days?|weeks?|months?|years?|ms|sec|min|hr)\b|[%$€£]",
     re.I,
@@ -47,11 +44,27 @@ UNIT_ALIASES = {
 }
 
 
+def _number_spelling(token):
+    token = token.translate(
+        str.maketrans(
+            {
+                ",": "",
+                "\u00a0": "",
+                "\u2009": "",
+                "\u202f": "",
+                "\u2212": "-",
+                " ": "",
+                "\t": "",
+            }
+        )
+    )
+    if token.startswith("(") and token.endswith(")"):
+        token = "-" + token[1:-1].lstrip("+-")
+    return token
+
+
 def _numbers(text):
-    return {
-        Decimal(n.replace(",", "").replace("(", "-").replace(")", ""))
-        for n in CLAIM_NUMBER.findall(text)
-    }
+    return {Decimal(_number_spelling(n)) for n in CLAIM_NUMBER.findall(text)}
 
 
 def _units(text):
@@ -116,17 +129,9 @@ def answer(
     context_order="ranked",
     **search_options,
 ) -> Answer:
-    if (
-        not isinstance(max_evidence_chars, int)
-        or isinstance(max_evidence_chars, bool)
-        or not 100 <= max_evidence_chars <= 50000
-        or context_order
-        not in {
-            "ranked",
-            "source",
-        }
-    ):
-        raise ValueError("Evidence budget must be between 100 and 50000 characters")
+    _evidence_budget(max_evidence_chars)
+    if context_order not in {"ranked", "source"}:
+        raise ValueError("Unknown evidence context order")
     with index._transaction() if context_order == "source" else nullcontext():
         retrieved = index.search(question, filters=filters, **search_options)
         source_key = None
@@ -148,17 +153,53 @@ def answer(
         )
 
 
-def _answer_evidence(
-    question, retrieved, *, generate=None, max_evidence_chars=12000, source_key=None
-):
-    """Shared citation validation for trusted retrieval/read tool outputs."""
+def _grounded_quote(source, quote):
+    """A quoted numeric token must be complete in the original source window."""
+    guarded = source.source_prefix + source.text + source.source_suffix
+    prefix = len(source.source_prefix)
+    numbers = {(m.start(), m.end()) for m in CLAIM_NUMBER.finditer(guarded)}
+    quoted = [(m.start(), m.end()) for m in CLAIM_NUMBER.finditer(quote)]
+    return any(
+        all(
+            (prefix + occurrence.start() + start, prefix + occurrence.start() + end)
+            in numbers
+            for start, end in quoted
+        )
+        for occurrence in re.finditer(re.escape(quote), source.text)
+    )
+
+
+def _evidence_budget(value):
+    if not isinstance(value, int) or isinstance(value, bool) or value < 100:
+        raise ValueError(
+            "Evidence budget must be an integer of at least 100 characters"
+        )
+
+
+def _pack_evidence(retrieved, max_evidence_chars):
+    _evidence_budget(max_evidence_chars)
     hits, remaining = [], max_evidence_chars
     for hit in retrieved:
         if remaining <= 0:
             break
         text = hit.text[:remaining]
-        hits.append(replace(hit, text=text, end=hit.start + len(text)))
+        hits.append(
+            replace(
+                hit,
+                text=text,
+                end=hit.start + len(text),
+                source_suffix=(hit.text[len(text) :] + hit.source_suffix)[:100],
+            )
+        )
         remaining -= len(text)
+    return hits
+
+
+def _answer_evidence(
+    question, retrieved, *, generate=None, max_evidence_chars=12000, source_key=None
+):
+    """Shared citation validation for trusted retrieval/read tool outputs."""
+    hits = _pack_evidence(retrieved, max_evidence_chars)
     if not hits:
         return Answer("no_evidence", "", [])
     if source_key:
@@ -177,8 +218,6 @@ def _answer_evidence(
         payload = json.dumps(
             {"question": question, "evidence": [h.to_dict() for h in hits]}
         )
-        if len(payload) > 50000:
-            raise ValueError("Oversized evidence payload")
         raw = generate(system, payload)
         if not isinstance(raw, str) or len(raw) > 50000:
             raise ValueError("Oversized generation response")
@@ -214,7 +253,7 @@ def _answer_evidence(
                     not source
                     or not isinstance(quote, str)
                     or not quote.strip()
-                    or quote not in source.text
+                    or not _grounded_quote(source, quote)
                 ):
                     raise ValueError("Unverifiable citation")
                 quotes.append(quote)
@@ -262,7 +301,7 @@ def calculate(operation: str, operands: list[Operand], sources: list[Hit]) -> di
         if (
             not source
             or not item.quote.strip()
-            or item.quote not in source.text
+            or not _grounded_quote(source, item.quote)
             or not item.unit.strip()
         ):
             raise ValueError(
@@ -273,9 +312,7 @@ def calculate(operation: str, operands: list[Operand], sources: list[Hit]) -> di
             raise ValueError("Unit is absent from operand quote")
         if item.value not in NUMBER.findall(item.quote):
             raise ValueError("Operand value is absent from quote")
-        spelling = item.value.replace(",", "")
-        if spelling.startswith("(") and spelling.endswith(")"):
-            spelling = "-" + spelling[1:-1]
+        spelling = _number_spelling(item.value)
         try:
             value = Decimal(spelling)
         except InvalidOperation as exc:

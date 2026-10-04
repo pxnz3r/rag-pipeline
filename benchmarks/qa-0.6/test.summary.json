@@ -1,0 +1,80 @@
+{
+  "input_sha256": "4e65eac31e51b85e520b692a8a1162364c35178b8a98a9db0f1b46c402bf35d3",
+  "cases": 24,
+  "routes": {
+    "full-context": {
+      "cases": 24,
+      "direct_correct": 1,
+      "direct_accuracy": 0.041666666666666664,
+      "program_correct": 13,
+      "program_accuracy": 0.5416666666666666,
+      "program_wilson95": [
+        0.3507486535891948,
+        0.72108666268789
+      ],
+      "corrected": 12,
+      "harmed": 0,
+      "program_minus_direct95": [
+        0.2916666666666667,
+        0.7083333333333334
+      ],
+      "statuses": {
+        "calculated": 24
+      },
+      "valid_but_wrong": 11,
+      "generation_calls": 24,
+      "completion_tokens": 708,
+      "cached_prompt_tokens": 5760,
+      "prompt_tokens": 39767,
+      "median_total_seconds": 46.48236425750656,
+      "median_generation_seconds": 46.47669733749353,
+      "finish_reasons": {
+        "stop": 24
+      }
+    },
+    "retrieval": {
+      "cases": 24,
+      "direct_correct": 1,
+      "direct_accuracy": 0.041666666666666664,
+      "program_correct": 9,
+      "program_accuracy": 0.375,
+      "program_wilson95": [
+        0.21159367559548778,
+        0.5729003755732572
+      ],
+      "corrected": 8,
+      "harmed": 0,
+      "program_minus_direct95": [
+        0.16666666666666666,
+        0.5416666666666666
+      ],
+      "statuses": {
+        "calculated": 21,
+        "ValueError:Unsupported expression or ungrounded literal": 2,
+        "JSONDecodeError:Unterminated string starting at: line 1 column 15 (char 14)": 1
+      },
+      "valid_but_wrong": 12,
+      "generation_calls": 24,
+      "completion_tokens": 1736,
+      "cached_prompt_tokens": 5760,
+      "prompt_tokens": 40370,
+      "median_total_seconds": 47.80981978399359,
+      "median_generation_seconds": 47.800455031996535,
+      "finish_reasons": {
+        "stop": 23,
+        "length": 1
+      }
+    }
+  },
+  "paired_route_differences": {
+    "retrieval minus full-context": {
+      "paired_cases": 24,
+      "mean": -0.16666666666666666,
+      "bootstrap95": [
+        -0.375,
+        0.041666666666666664
+      ]
+    }
+  },
+  "caveats": "Small numeric subset; common prompt and adapters, not a published upstream configuration. Wilson intervals are per route. Bootstrap differences resample paired cases. Persistent prompt cache affects latency; no SOTA or cross-domain conclusion."
+}
