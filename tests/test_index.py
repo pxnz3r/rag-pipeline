@@ -535,6 +535,7 @@ def test_dense_cache_matches_streaming_and_invalidates_with_wal_snapshot(tmp_pat
         )
         reader.vector_cache_bytes = 1
         assert reader.search("Lease", mode="dense")
+
         assert reader._dense_cache[1] is None
         reader.vector_cache_bytes = 0
         assert reader.search("Lease", mode="dense") and reader._dense_cache is None
@@ -554,3 +555,81 @@ def test_dense_cache_matches_streaming_and_invalidates_with_wal_snapshot(tmp_pat
         )
         with pytest.raises(ValueError, match="Corrupt"):
             reader.search("Lease", mode="dense")
+
+
+@pytest.mark.parametrize("mode", ["dense", "hybrid"])
+def test_query_encoding_releases_snapshot_and_reads_latest_scoped_evidence(
+    tmp_path, mode
+):
+    root = tmp_path / "corpus"
+    book = source(root, "book.txt", "Revenue was 120.", company="A")
+    source(root, "other.txt", "Revenue was 999.", company="B")
+    path = tmp_path / "index.sqlite"
+    with Index(path, Encoder()) as reader, Index(path, Encoder()) as writer:
+        reader.ingest(root)
+        old = reader.search("Revenue", mode=mode, filters={"company": "A"})[0]
+
+        def encode_queries(texts):
+            assert not reader.db.in_transaction
+            book.write_text("Revenue was 240.")
+            writer.ingest(root)
+            writer.db.execute("PRAGMA busy_timeout=0")
+            # A held reader would make TRUNCATE return busy and retain WAL pages.
+            assert tuple(
+                writer.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            ) == (
+                0,
+                0,
+                0,
+            )
+            return Encoder().encode(texts)
+
+        reader.embedder.encode_queries = encode_queries
+        hit = reader.search("Revenue", mode=mode, filters={"company": "A"})[0]
+        assert hit.text == "Revenue was 240." and hit.metadata["company"] == "A"
+        assert hit.source_revision != old.source_revision
+        assert not reader.db.in_transaction
+
+
+@pytest.mark.parametrize("key", ["embedding", "dimension"])
+def test_query_rejects_model_replacement_during_encoding(tmp_path, key):
+    root = tmp_path / "corpus"
+    source(root, "book.txt", "Revenue was 120.")
+    path = tmp_path / "index.sqlite"
+    with Index(path, Encoder()) as reader, Index(path, Encoder()) as writer:
+        reader.ingest(root)
+
+        def encode_queries(texts):
+            vectors = Encoder().encode(texts)
+            with writer._transaction(write=True):
+                writer.db.execute(
+                    "UPDATE state SET value='replaced' WHERE key=?", (key,)
+                )
+            return vectors
+
+        reader.embedder.encode_queries = encode_queries
+        with pytest.raises(ValueError, match="does not match|dimensions changed"):
+            reader.search("Revenue", mode="dense")
+        assert not reader.db.in_transaction
+
+
+def test_query_preserves_caller_owned_snapshot(tmp_path):
+    root = tmp_path / "corpus"
+    book = source(root, "book.txt", "Revenue was 120.")
+    path = tmp_path / "index.sqlite"
+    with Index(path, Encoder()) as reader, Index(path, Encoder()) as writer:
+        reader.ingest(root)
+
+        def encode_queries(texts):
+            assert reader.db.in_transaction
+            book.write_text("Revenue was 240.")
+            writer.ingest(root)
+            return Encoder().encode(texts)
+
+        reader.embedder.encode_queries = encode_queries
+        with reader._transaction():
+            assert reader.search("Revenue", mode="dense")[0].text == "Revenue was 120."
+            assert reader.db.in_transaction
+        assert not reader.db.in_transaction
+        del reader.embedder.encode_queries
+        assert reader.search("Revenue", mode="dense")[0].text == "Revenue was 240."
