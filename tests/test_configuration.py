@@ -110,6 +110,24 @@ def test_configured_servers_complete_pipeline_and_reject_forged_answer(tmp_path)
                         dict(message=dict(content=json.dumps(dict(claims=[claim]))))
                     ]
                 )
+            if data.get("response_format", {}).get("type") == "json_schema":
+                result = dict(
+                    choices=[
+                        dict(
+                            message=dict(
+                                content=json.dumps(
+                                    dict(
+                                        steps=[
+                                            dict(
+                                                op="identity", args=[dict(operand="N0")]
+                                            )
+                                        ]
+                                    )
+                                )
+                            )
+                        )
+                    ]
+                )
             self.send_response(200)
             self.end_headers()
             self.wfile.write(json.dumps(result).encode())
@@ -133,6 +151,7 @@ def test_configured_servers_complete_pipeline_and_reject_forged_answer(tmp_path)
             )
             for role in ("embedding", "reranker", "generation")
         }
+        specs["generation"]["options"]["structured_outputs"] = True
         config_path = tmp_path / "pipeline.json"
         specs["search"] = dict(mode="hybrid", k=1, candidates=4)
         config_path.write_text(json.dumps(specs))
@@ -172,6 +191,7 @@ def test_configured_servers_complete_pipeline_and_reject_forged_answer(tmp_path)
             ("ingest", str(root)),
             ("search", "revenue"),
             ("ask", "revenue", "--generate"),
+            ("reason", "revenue"),
         ]:
             proc = subprocess.run(
                 [
@@ -193,6 +213,8 @@ def test_configured_servers_complete_pipeline_and_reject_forged_answer(tmp_path)
                 assert len(result) == 1 and result[0]["document"] == "report.txt"
             elif arguments[0] == "ask":
                 assert result["status"] == "cited"
+            elif arguments[0] == "reason":
+                assert result["status"] == "calculated" and result["value"] == "125"
         assert {data["model"] for _, data in calls} == {
             "independent-embedding",
             "independent-reranker",

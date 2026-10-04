@@ -1,0 +1,23 @@
+{
+  "checked": 48,
+  "mismatches": [],
+  "input_sha256": "4e65eac31e51b85e520b692a8a1162364c35178b8a98a9db0f1b46c402bf35d3",
+  "release_sha256": {
+    "__init__.py": "bd3644bced9f39a8fec8c4cd342cacbf1a9446e1ac2a779ebd9939639e99b4d5",
+    "answers.py": "f1db62454035cfc7f7d06ecd55fbb32b542ab57b04b992687cd6355dda86cfe7",
+    "cli.py": "fdf5616a0541f147221caf23217e3263ea08778dce5ae1a8a0e831b9747b9916",
+    "configuration.py": "e6e22e530a80c536470b6de35bb9ccc9ec07cf3a073e6682af5d001c62fe9fef",
+    "embeddings.py": "911844251b3c4b944b30ace38c1b27d162186d6ef2bd50447c9572b27ad9d5a4",
+    "evaluation.py": "0b6f8910becd747483eefa3e58d6de45524e1c6bb2d1c7c835bb146c53ec0b0c",
+    "expressions.py": "0ac5dfb655507cb7a7cf04d126effcac71b71a0dd352b69813e008f3a55ad852",
+    "index.py": "80e66581022585139c6126a84e4456dbcd0b0fa5fbb4d344f4b478824f161dcb",
+    "navigation.py": "8e691ee6dca4e9ecb95f43b994cd8aa7a9f6c3c0cf1300bba862483ce83ca4a7",
+    "pdf_worker.py": "2b6a3434fe67cbc585a0d07dd515fa09c9f50214f0a8a451706526b37fbee166",
+    "providers.py": "b023b4f7de407f205c74083ac7aeea17ad183ddfc8977289efe542245805da5e",
+    "reasoning.py": "643973fb7d5c37dcf863993f93e183b1d214b0fd800be9e41a22324decf3ee1b",
+    "retrieval_metrics.py": "b1d3e9e895368965c3e62a3d5670e28c4be4fb26ad5efde95a2dc7fe6f30fc3c",
+    "sources.py": "0999da70794a16374e216551f6e8fb2e3b1b52460c06f434a3fe0c07841da8ed",
+    "token_cache.py": "481a4e38d00e98a24a7025bff8e3996d1607af02e861a19c93b3bd4a05276e93"
+  },
+  "scope": "Deterministic packing/program replay, not a new model accuracy run or semantic correctness check."
+}

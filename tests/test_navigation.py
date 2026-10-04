@@ -214,7 +214,7 @@ def test_heading_tree_original_ranges_scope_and_cascade(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "options", [{"max_calls": True}, {"max_chars": 0}, {"max_calls": 101}]
+    "options", [{"max_calls": True}, {"max_chars": 0}, {"max_calls": 0}]
 )
 def test_invalid_navigation_budget(tmp_path, options):
     with Index(tmp_path / "i.sqlite") as index:

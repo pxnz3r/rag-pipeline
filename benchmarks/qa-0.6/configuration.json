@@ -1,0 +1,32 @@
+{
+  "embedding": {
+    "kind": "python",
+    "factory": "rag_pipeline.embeddings:MiniLM",
+    "options": {}
+  },
+  "generation": {
+    "kind": "openai",
+    "options": {
+      "endpoint": "http://127.0.0.1:8083/v1",
+      "model": "qa-research-model",
+      "max_tokens": 1000,
+      "temperature": 0,
+      "timeout": 600,
+      "structured_outputs": true,
+      "request_options": {
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      }
+    }
+  },
+  "search": {
+    "mode": "hybrid",
+    "k": 5,
+    "context_chars": 900,
+    "candidates": 40
+  },
+  "answer": {
+    "max_evidence_chars": 6500
+  }
+}

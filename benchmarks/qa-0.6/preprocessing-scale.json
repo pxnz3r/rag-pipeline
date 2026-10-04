@@ -1,0 +1,27 @@
+{
+  "scope": "Synthetic long unbroken numeric line; preprocessing only, not retrieval/generation latency or accuracy.",
+  "old_revision": "43a4037",
+  "old_source_sha256": "eceabc10e7c9a8118d38f86ada05b3e0dfc11e21e60ced01c149df0e92d2a30b",
+  "new_source_sha256": "643973fb7d5c37dcf863993f93e183b1d214b0fd800be9e41a22324decf3ee1b",
+  "repeats": 3,
+  "cases": [
+    {
+      "numbers": 10000,
+      "original_chars": 48889,
+      "annotated_sha256": "228e6dcc987cc166f05d01e1d0a97e259f6b85f8beae2d1a7a9f34bebd478d39",
+      "identical_output": true,
+      "old_median_ms": 107.54209400329273,
+      "new_median_ms": 46.04340200603474,
+      "ratio": 2.335667855064176
+    },
+    {
+      "numbers": 50000,
+      "original_chars": 288889,
+      "annotated_sha256": "3b88d545d4d7ea2aeba39a0585c629c232c36d98220c60783f5488367b9a6651",
+      "identical_output": true,
+      "old_median_ms": 2076.154080001288,
+      "new_median_ms": 246.60644300456624,
+      "ratio": 8.418896338255223
+    }
+  ]
+}

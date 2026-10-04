@@ -1,0 +1,41 @@
+{
+  "tests": {
+    "python3.10": {
+      "actual_models": true,
+      "passed": 137
+    },
+    "python3.12": {
+      "actual_models": true,
+      "passed": 137
+    }
+  },
+  "dependency_audits": "No known vulnerabilities in either resolved environment; local project itself is not a PyPI advisory package.",
+  "wheel": "Installed core-only wheel with NumPy absent: lexical ingestion/search, mortgage computation, explicit large context and approved conversions.",
+  "primary_loaded_commit": "f8c70fd38dfd712e934378be7ffd01a62d7506f0",
+  "failed_string_control_loaded_commit": "d0b0c3c01bdcd264fcb5920e57da0180f27e3e02",
+  "numeric_control_loaded_commit": "c78d237",
+  "non_generation_seconds": {
+    "retrieval": {
+      "median": 0.012131509000028018,
+      "scope": "Includes retrieval/context packing, adapters and execution on this 32-view corpus; generation request includes model/server/network work."
+    },
+    "full-context": {
+      "median": 0.003415674997086171,
+      "scope": "Includes retrieval/context packing, adapters and execution on this 32-view corpus; generation request includes model/server/network work."
+    }
+  },
+  "evidence_equivalence": "Identical catalogs, quotes, operand IDs and model annotation on all48 primary inputs and3 authored edge cases before/after linear preprocessing.",
+  "branch_automation": {
+    "ci": "Read-only, no branch writes",
+    "dependabot_version_updates": "PR limit0",
+    "merged_branches": "Removed PR24/25 heads",
+    "security_update_flag": "Administration access unavailable; managed workflow disable rejected HTTP422."
+  },
+  "limitations": [
+    "Numeric24-case subset with correct report-page scope supplied",
+    "Nonthinking zero-shot quantized4B CPU research fixture; no training-exposure guarantee",
+    "String-only estimate/control format unreliable on authored probe; not a valid arithmetic baseline",
+    "Corrected numeric answer-only control is exploratory post-hoc and weak; no matched strong few-shot/CoT/frontier comparator",
+    "No full-test/SOTA/market-leadership or cross-domain semantic correctness claim"
+  ]
+}

@@ -2,7 +2,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pxnz3r/rag-pipeline/ci.yml?branch=main&label=CI)](https://github.com/pxnz3r/rag-pipeline/actions/workflows/ci.yml)
 
-Local, evidence-first retrieval for financial reports, account records, legal contracts, biomedical abstracts, software documentation and books. One SQLite transaction synchronizes original text, metadata, full-text search and optional vectors. The core has only one third-party dependency (pypdf); NumPy/inference stay in the models extra. Default answers return exact evidence; optional generation must provide verifiable quotes. Numerical reasoning uses explicit source-bound decimal operations.
+Local, evidence-first retrieval for financial reports, account records, legal contracts, biomedical abstracts, software documentation and books. One SQLite transaction synchronizes original text, metadata, full-text search and optional vectors. The core has only one third-party dependency (pypdf); NumPy/inference stay in the models extra. Default answers return exact evidence; optional generation must provide verifiable quotes. Numerical reasoning uses explicit source-bound Decimal operations or compact verified formulas.
 
 ```bash
 python -m pip install --upgrade pip
@@ -51,9 +51,11 @@ with Index("processed_data/index.sqlite") as index:
 
 Use `ingest --contextual` to carry extractive Markdown heading hierarchies into both lexical and dense indexing. Results expose `context` separately; cited `text` and offsets always remain original. This adds no hosted-model cost and stays opt-in. Search distinguishes `C++`, `C#` and `snake_case` symbols.
 
+Use `reason --program-format expression` with a configured generator for source-bound quantitative questions. `--route auto` reads complete scoped context when it fits the evidence budget, then falls back to retrieval under that scope. [Reasoning and QA protocol](docs/REASONING.md) explains execution traces and the limits of arithmetic verification.
+
 Measured checks include independent FinQA row judgments, CUAD legal character spans, the full BEIR SciFact retrieval test set, authored domain regression canaries, and account/vector scale checks. See [results and reproduction](docs/TESTING.md) and [research](docs/RESEARCH.md). These are transparent subsets, not proof of production accuracy or a claim of state-of-the-art performance. Citation validation proves quote provenance, not semantic entailment; ambiguous scope, wrong units, OCR and unsupported questions still need review.
 
-**0.5 requires explicit model configuration and stages inference before atomic publication.** See [configuration migration](docs/CONFIGURATION.md). The 0.4 storage migration upgrades 0.3 SQLite indexes transactionally on first open, preserving sources and vectors. Back up before upgrading; 0.3 cannot read the upgraded schema. Enabling heading context or changing the encoder rebuilds the corpus on the next ingest. Users upgrading from 0.2 must reindex original files into SQLite and retain old stores for rollback. See [migration and operations](docs/OPERATIONS.md), [architecture](docs/ARCHITECTURE.md), [CLI](docs/CLI.md), and [security](SECURITY.md). The notebook is a small optional interface over this API.
+**0.6 adds grounded numerical programs, compact formulas and controlled real-generation QA comparisons.** 0.5 requires explicit model configuration and stages inference before atomic publication. See [configuration migration](docs/CONFIGURATION.md). The 0.4 storage migration upgrades 0.3 SQLite indexes transactionally on first open, preserving sources and vectors. Back up before upgrading; 0.3 cannot read the upgraded schema. Enabling heading context or changing the encoder rebuilds the corpus on the next ingest. Users upgrading from 0.2 must reindex original files into SQLite and retain old stores for rollback. See [migration and operations](docs/OPERATIONS.md), [architecture](docs/ARCHITECTURE.md), [CLI](docs/CLI.md), and [security](SECURITY.md). The notebook is a small optional interface over this API.
 
 Dependabot version-update PRs remain disabled. CI uses read-only permissions and never writes branches. Repository-level automatic security-update settings require owner access and remain unverified; [operations](docs/OPERATIONS.md) explains the separate setting.
 
