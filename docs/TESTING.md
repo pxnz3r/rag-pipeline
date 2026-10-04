@@ -1,4 +1,14 @@
-# Validation — 0.5
+# Validation — 0.6
+
+137 tests pass with actual pinned model assets on Python 3.10 and 3.12; both resolved dependency audits report no known vulnerabilities. The installed core-only wheel runs lexical retrieval, grounded formulas, large configured contexts, approved conversions and a 360-month mortgage calculation without NumPy. Numerical programs retain original source revisions and traces; execution validity is distinct from question/period/unit correctness.
+
+The fresh FinQA numeric subset contains 24 report-page-disjoint cases: complete scoped context answers 13/24 correctly (54.2%, Wilson 95% 35.1–72.1); retrieved windows answer 9/24 (37.5%, 21.2–57.3). The paired route difference is 16.7 percentage points in favor of context, with a bootstrap interval spanning zero. This is a quantized 4B, nonthinking, zero-shot CPU profile with supplied report-page scope, not an official full-test or competitive/SOTA score.
+
+A string-only answer estimate/control is not a valid arithmetic baseline: an independent authored USD 125 probe returned brace text with string-or-null output, but 125 when JSON numbers were allowed. The corrected numeric-compatible answer-only control is retained separately and achieves 0/24 exact matches on each route. It is an exploratory, weak control and does not establish broad superiority; stronger few-shot/CoT and frontier-model comparators remain necessary. All failures and the earlier aborted trial are retained. [Raw calls, manifests, intervals, format probe and reproduction](../benchmarks/qa-0.6/README.md). Release replay verifies all 48 primary predictions/statuses and evidence packing unchanged.
+
+Preprocessing on a synthetic unbroken numeric line produces identical catalogs and annotated output: 10,000 numbers 107.54→46.04 ms; 50,000 numbers 2076.15→246.61 ms (8.42×). This isolates quote lookup/annotation construction with inference stopped, not end-to-end latency or accuracy. On the 32-view QA corpus, median work outside generation requests was 12.1 ms retrieval and 3.4 ms context; generation requests took tens of seconds on the 2-CPU quota. [Measurement artifact](../benchmarks/qa-0.6/preprocessing-scale.json).
+
+## Historical validation — 0.5
 
 104 tests pass with actual model assets on Python 3.10/3.12. New tests exercise configuration through local HTTP ingestion/retrieval/reranking/generation and CLI, generic ONNX against reference graph outputs, and real peer writers during staged inference. These are runtime contract checks, not new answer-quality scores. The full 98-question FinQA hybrid replay produces exactly the same per-question rankings as 0.4; [regression artifact](../benchmarks/results-0.5.json). [Architecture audit](ARCHITECTURE-AUDIT.md) distinguishes fixed boundaries from remaining work.
 

@@ -1,4 +1,4 @@
-# Pipeline architecture audit — 2026-10-03
+# Pipeline architecture audit — 2026-10-04
 
 Scope: source extraction through final response, CLI/configuration, persistence, concurrency, resource use and evaluation. This is a source-backed engineering audit, not evidence of market leadership or a guarantee of zero undiscovered defects. Status distinguishes implemented fixes from remaining architectural work.
 
@@ -20,6 +20,7 @@ Scope: source extraction through final response, CLI/configuration, persistence,
 | Contextual ingestion shadows metadata with last heading | Fixed: separate heading title variable; extraction version changed; regression checks metadata representation |
 | Retrieval issues one SQL metadata query per candidate | Fixed: fetch candidate metadata in bounded SQL batches |
 | Token cache restricts models to 512 tokens/4096 dimensions | Fixed: representation geometry accepted within explicit per-vector byte budget; malformed arrays rejected |
+| Numerical catalog/annotation repeatedly copies whole text | Fixed in 0.6: bounded quote lookups, bounded unit lookahead and one-pass grouped annotation; identical catalogs/model input on 51 checks and 8.42× synthetic preprocessing improvement |
 | Raw source cap allows normalized extraction amplification | Fixed in 0.6: cumulative UTF-8 budget for repeated CSV labels/JSON indentation and streamed bounded JSON serialization |
 | Numerical generation invents operands or computes inaccurately | Fixed boundary in 0.6: complete original numeric tokens, source revisions, bounded step/formula compiler and Decimal execution. Quantity/period/operation selection remains a model error source |
 | Source and vector/FTS updates can partially commit | Existing whole-publication transaction and FTS triggers retained; rollback/deletion/migration tests |

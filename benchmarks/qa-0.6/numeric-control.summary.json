@@ -1,0 +1,79 @@
+{
+  "input_sha256": "3bb86091baa59a79cca152dd32e867897c277e9ca477d42c08542554be3c95da",
+  "cases": 24,
+  "routes": {
+    "full-context": {
+      "cases": 24,
+      "direct_correct": 0,
+      "direct_accuracy": 0.0,
+      "program_correct": 0,
+      "program_accuracy": 0.0,
+      "program_wilson95": [
+        1.3877787807814457e-17,
+        0.13797620467498017
+      ],
+      "corrected": 0,
+      "harmed": 0,
+      "program_minus_direct95": [
+        0.0,
+        0.0
+      ],
+      "statuses": {
+        "answer_only": 23,
+        "abstained": 1
+      },
+      "valid_but_wrong": 0,
+      "generation_calls": 24,
+      "completion_tokens": 227,
+      "cached_prompt_tokens": 1656,
+      "prompt_tokens": 28661,
+      "median_total_seconds": 36.54061907699361,
+      "median_generation_seconds": 36.54024851799477,
+      "finish_reasons": {
+        "stop": 24
+      }
+    },
+    "retrieval": {
+      "cases": 24,
+      "direct_correct": 0,
+      "direct_accuracy": 0.0,
+      "program_correct": 0,
+      "program_accuracy": 0.0,
+      "program_wilson95": [
+        1.3877787807814457e-17,
+        0.13797620467498017
+      ],
+      "corrected": 0,
+      "harmed": 0,
+      "program_minus_direct95": [
+        0.0,
+        0.0
+      ],
+      "statuses": {
+        "answer_only": 21,
+        "abstained": 3
+      },
+      "valid_but_wrong": 0,
+      "generation_calls": 24,
+      "completion_tokens": 241,
+      "cached_prompt_tokens": 1656,
+      "prompt_tokens": 28916,
+      "median_total_seconds": 37.77806712300662,
+      "median_generation_seconds": 37.77018902000418,
+      "finish_reasons": {
+        "stop": 24
+      }
+    }
+  },
+  "paired_route_differences": {
+    "retrieval minus full-context": {
+      "paired_cases": 24,
+      "mean": 0.0,
+      "bootstrap95": [
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "caveats": "Small numeric subset; common prompt and adapters, not a published upstream configuration. Wilson intervals are per route. Bootstrap differences resample paired cases. Persistent prompt cache affects latency; no SOTA or cross-domain conclusion."
+}

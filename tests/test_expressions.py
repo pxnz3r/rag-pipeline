@@ -81,3 +81,16 @@ def test_expression_generation_uses_same_grounded_executor():
         reason_from_sources(
             "Growth?", sources, generate=lambda *a: "", program_format="python"
         )
+
+
+def test_monthly_mortgage_term_and_extreme_power_rejection():
+    text = "Principal USD 300000. Monthly interest 0.5%. Term 360 months."
+    sources = [Hit("s", "mortgage", "text", 0, len(text), text, {}, 0)]
+    result = execute_expression("N0*N1/(one-(one+N1)**(-N2))", sources)
+    assert Decimal(result.value).quantize(Decimal(".01")) == Decimal("1798.65")
+    with pytest.raises(ValueError, match="bounded"):
+        execute_expression("N0**huge", sources, constants={"huge": "1000001"})
+    with pytest.raises(ValueError, match="exponent range"):
+        execute_expression("N0**N0", sources)
+    with pytest.raises(ValueError, match="exponent range"):
+        execute_expression("tiny**N2*N1", sources, constants={"tiny": "1e-1000"})

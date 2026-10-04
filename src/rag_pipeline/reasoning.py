@@ -10,7 +10,7 @@ import json
 import keyword
 import re
 from dataclasses import dataclass, field, replace
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import Decimal, InvalidOperation, Underflow, localcontext
 
 from .answers import CLAIM_NUMBER, UNIT, _number_spelling, _pack_evidence
 from .index import Hit
@@ -310,45 +310,52 @@ def execute_program(program, sources, *, constants=None):
     values, trace = [], []
     with localcontext() as context:
         context.prec = precision
+        context.Emax, context.Emin = 2000, -2000
+        context.traps[Underflow] = True
         for op, args in parsed:
             inputs = [
                 values[v] if kind == "step" else v / 100 if kind == "percent" else v
                 for kind, v in args
             ]
-            if op == "identity":
-                value = inputs[0]
-            elif op == "add":
-                value = sum(inputs, Decimal(0))
-            elif op == "subtract":
-                value = inputs[0] - inputs[1]
-            elif op == "multiply":
-                value = Decimal(1)
-                for v in inputs:
-                    value *= v
-            elif op == "divide":
-                if inputs[1] == 0:
-                    raise ValueError("Division by zero")
-                value = inputs[0] / inputs[1]
-            elif op == "power":
-                if (
-                    abs(inputs[1]) > 100
-                    or inputs[0] < 0
-                    and inputs[1] != inputs[1].to_integral_value()
-                    or inputs[0] == 0
-                    and inputs[1] < 0
-                ):
-                    raise ValueError(
-                        "Power requires bounded exponent and valid real domain"
-                    )
-                value = inputs[0] ** inputs[1]
-            elif op == "min":
-                value = min(inputs)
-            elif op == "max":
-                value = max(inputs)
-            elif op == "mean":
-                value = sum(inputs, Decimal(0)) / len(inputs)
-            else:
-                value = Decimal(len(inputs))
+            try:
+                if op == "identity":
+                    value = inputs[0]
+                elif op == "add":
+                    value = sum(inputs, Decimal(0))
+                elif op == "subtract":
+                    value = inputs[0] - inputs[1]
+                elif op == "multiply":
+                    value = Decimal(1)
+                    for v in inputs:
+                        value *= v
+                elif op == "divide":
+                    if inputs[1] == 0:
+                        raise ValueError("Division by zero")
+                    value = inputs[0] / inputs[1]
+                elif op == "power":
+                    if (
+                        abs(inputs[1]) > 1000000
+                        or inputs[0] < 0
+                        and inputs[1] != inputs[1].to_integral_value()
+                        or inputs[0] == 0
+                        and inputs[1] < 0
+                    ):
+                        raise ValueError(
+                            "Power requires bounded exponent and valid real domain"
+                        )
+                    value = inputs[0] ** inputs[1]
+                elif op == "min":
+                    value = min(inputs)
+                elif op == "max":
+                    value = max(inputs)
+                elif op == "mean":
+                    value = sum(inputs, Decimal(0)) / len(inputs)
+                else:
+                    value = Decimal(len(inputs))
+            except ArithmeticError:
+                raise ValueError(
+                    "Program arithmetic exceeds supported exponent range"
+                ) from None
             if not value.is_finite() or abs(value.adjusted()) > 2000:
                 raise ValueError("Program result outside resource limits")
             values.append(value)

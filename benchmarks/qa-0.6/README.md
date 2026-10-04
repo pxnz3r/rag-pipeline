@@ -1,6 +1,6 @@
 # Controlled real-generation numerical QA
 
-This experiment compares retrieved windows and complete original scoped context through the actual pinned FlashRAG sequential class with common adapters. Each generated response contains both a source-bound formula and an answer estimate. Comparing these two predictions isolates deterministic execution without another model call. It is not an official FlashRAG configuration or a FinQA leaderboard submission.
+This experiment compares retrieved windows and complete original scoped context through the actual pinned FlashRAG sequential class with common adapters. Each primary response contains a source-bound formula and an answer estimate. The string-only estimate has a response-format problem in this fixture and is not a valid arithmetic-quality baseline. The executed program's answer accuracy is reported independently. It is not an official FlashRAG configuration or a FinQA leaderboard submission.
 
 The test has 24 numeric cases, with correct report-page identity supplied as input. All 130 earlier query IDs and 112 previously used report-page IDs are excluded. Development uses eight cases. Identical original input views are deduplicated; distinct views are scoped separately. Column labels are repeated per row with the same formatter used for product CSV ingestion. Original numbers are preserved. These inputs are already extracted report text and table matrices, not raw PDF/OCR output.
 
@@ -42,3 +42,22 @@ Record your actual runtime/hardware in a separate manifest on reruns. Timing her
 The judge follows official FinQA five-decimal float rounding and exact numeric gold comparison. Invalid expressions, abstentions and truncations are incorrect. Program equivalence, calibrated unanswerability, full-corpus report discovery and semantic entailment are not scored. A `calculated` result proves operand provenance and arithmetic validity; valid but semantically wrong programs are counted explicitly. Per-route Wilson intervals and case-paired bootstrap differences show uncertainty. Development results cannot establish test performance, and this small CPU fixture cannot establish market leadership or medical/legal correctness.
 
 An exploratory answer-only control is specified while the primary test is in progress, then run sequentially on the same cases and retrieval/context routes. It uses original unannotated source text and a numeric answer schema, with the same model, generation cap and scoring. This assesses the complete structured-program treatment against plain answer generation; its post-hoc status is explicit. No control prompt is selected using individual test answers.
+
+## Completed results and format correction
+
+| Route | Executed primary programs | Numeric-compatible answer-only control |
+| --- | ---: | ---: |
+| Complete scoped context | 13/24 (54.2%) | 0/24 |
+| Retrieved windows | 9/24 (37.5%) | 0/24 |
+
+The control is exploratory, nonthinking and zero-shot, not a strong published configuration. These figures do not establish market leadership or general superiority over other systems. The original string-only control abstained on all 48 calls. The authored `schema-probe.json` instead shows a deeper format mismatch: string-or-null returned brace text on an explicit USD 125 question, while permitting JSON numbers returned 125. The corrected control changes only its answer schema, preserving the original prompt, source windows, budget, model and judge. Primary generation remains frozen. The primary string-only estimates therefore do not establish arithmetic gains. All three trials, manifests and format probes remain visible.
+
+`verification.json` records source versions and checks. `release-replay.json` verifies all 48 primary packing/prediction/status records against release code. `preprocessing-scale.json` measures identical output with bounded quote searches and one-pass annotation assembly; its 8.42× improvement at 50,000 numbers is not a model/generation speedup.
+
+```bash
+# Obtain the immutable historical implementation if cloning after squash merge.
+git fetch origin refs/pull/26/head:refs/remotes/origin/pr-26
+python scripts/benchmark_numeric_evidence.py --old-revision 43a4037 --output /tmp/preprocessing.json
+python scripts/replay_qa.py benchmarks/qa-0.6/test.jsonl benchmarks/qa-0.6/test.manifest.json /tmp/replay.json
+# Add --answer-only to the QA command for the numeric-compatible control.
+```
