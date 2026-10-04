@@ -1,0 +1,14 @@
+{
+  "reference_commit": "418661ec619abee477ef490c877d0f6cfb5183f2",
+  "reference_source_sha256": "80e66581022585139c6126a84e4456dbcd0b0fa5fbb4d344f4b478824f161dcb",
+  "candidate_source_sha256": "25f2ac4c515f4ac747c0a10f586c1101f16fdf5bb032e91e951ea14c104a3cd9",
+  "dataset": "finqa-test-row-proxy-100-seed42",
+  "dataset_source_sha256": "831dbfb2e785dbc227f895ce3f24046433467aec67b09db2bd6ac7692a8a30dc",
+  "dataset_manifest_sha256": "89949f22677848512c8b2314b5368411b5e801e84804294f64b9aae285c55449",
+  "embedding": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx:mean:256:v1",
+  "mode": "hybrid",
+  "queries": 98,
+  "complete_hit_mismatches": [],
+  "historical_05_ranking_mismatches": [],
+  "limitations": "Static 2465-document row-retrieval regression, not QA accuracy or scalability. Complete Hit dictionaries compared against merged v0.6 source on identical stored corpus and actual configured model. No new inference-quality gain claimed."
+}

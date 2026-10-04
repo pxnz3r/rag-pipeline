@@ -1,4 +1,8 @@
-# Validation — 0.6
+# Validation — 0.6.1
+
+142 tests pass with actual pinned model assets on Python 3.10 and 3.12. Ordinary dense/hybrid encoding allows concurrent publication and complete WAL truncation; search returns the latest scoped evidence, rejects incompatible model replacement and preserves explicit caller-owned snapshots. On the static 98-question FinQA row proxy, complete Hit dictionaries (including scores, context and source revisions) are identical to merged 0.6; historical 0.5 rankings also match. This is a concurrency fix, not an answer-accuracy gain. [Regression artifact](../benchmarks/query-snapshot-0.6.1.json).
+
+## Historical validation — 0.6
 
 137 tests pass with actual pinned model assets on Python 3.10 and 3.12; both resolved dependency audits report no known vulnerabilities. The installed core-only wheel runs lexical retrieval, grounded formulas, large configured contexts, approved conversions and a 360-month mortgage calculation without NumPy. Numerical programs retain original source revisions and traces; execution validity is distinct from question/period/unit correctness.
 

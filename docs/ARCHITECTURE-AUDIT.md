@@ -31,7 +31,7 @@ Scope: source extraction through final response, CLI/configuration, persistence,
 | Loading heavyweight adapters for status/lexical commands | Lazy role construction retained; no provider is required for core lexical operation |
 | ANN scalability | **Remaining:** exact dense scans are O(N×dimension). A bounded warm matrix improves repeated scans, not asymptotic scaling. No million-chunk ANN claim |
 | Single persistent-store writer | **Remaining:** final SQLite commits serialize. Staging shortens lock duration; large publication still incurs FTS/vector write cost |
-| Query inference while holding a read snapshot | **Remaining:** stable evidence snapshot can retain WAL during slow inference; separate serving workers/connection lifetimes need workload profiling |
+| Query inference while holding a read snapshot | Fixed for ordinary dense/hybrid query encoding in 0.6.1: encode before opening the evidence snapshot, then recheck model/dimension compatibility; real peer publication and WAL truncation tests. **Remaining:** reranker inference and caller-owned snapshots (including source-ordered answers) retain their snapshot; connection lifetimes still need workload profiling |
 | Serving concurrency and scheduling | **Remaining:** one Index connection per owning thread; no async server, queue/backpressure pool or multi-host scheduling implementation |
 | Model lifecycle | **Remaining:** CLI launches adapters per invocation; persistent Python application can reuse them. No warm daemon/model eviction scheduler |
 | Structured table understanding | **Remaining:** row/header rendering preserves text, not nested headers, merged cells, table relationships or full numerical program induction |

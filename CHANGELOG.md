@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1
+
+- Encode ordinary dense/hybrid queries before opening the evidence snapshot, then recheck model and dimension compatibility. Concurrent publication can checkpoint the WAL during encoding; explicit caller-owned snapshots remain intact.
+- Verify the complete 98-question static FinQA retrieval replay and concurrent-writer regressions; no answer-quality gain claimed.
+
+## 0.6.0
+
+- Add source-bound numerical catalogs, deterministic Decimal programs and a bounded expression compiler, with original spans/revisions and explicit approved constants.
+- Add scoped complete-context reasoning, configurable context budgets and provider request options; bound normalized extraction amplification and remove quadratic catalog/annotation copying.
+- Publish real FinQA numerical QA calls, intervals, unsuccessful format controls and reproduction manifests. Execution validity does not establish semantic correctness or market leadership.
+
 ## 0.5.0
 
 - Require explicit independent embedding/reranking/generation providers; remove CLI model lists and implicit model/vendor defaults. Add strict JSON configuration, installed factories, generic ONNX pooling/output/device settings and bounded server chat/reranking protocols.

@@ -619,6 +619,17 @@ class Index:
         if not terms:
             return []
         clause, args = self._filters(filters)
+        query = None
+        if mode != "lexical":
+            if not self.db.execute("SELECT 1 FROM chunks LIMIT 1").fetchone():
+                return []
+            if self._state("embedding") != self.embedder.signature:
+                raise ValueError(
+                    "Query embedding model does not match the indexed model"
+                )
+            # Encoding needs no corpus snapshot. A peer may publish while it runs;
+            # validate compatibility again in the snapshot used for all evidence.
+            query = self._vectors([question], write=False)[0]
         with self._transaction():
             if not self.db.execute("SELECT 1 FROM chunks LIMIT 1").fetchone():
                 return []
@@ -637,13 +648,12 @@ class Index:
                     )
                 ]
             if mode != "lexical" and self.embedder:
-                import numpy as np
-
                 if self._state("embedding") != self.embedder.signature:
                     raise ValueError(
                         "Query embedding model does not match the indexed model"
                     )
-                query = self._vectors([question], write=False)[0]
+                if self._state("dimension") != str(len(query)):
+                    raise ValueError("Embedding dimensions changed; create a new index")
                 dense = self._dense_ranking(query, clause, args, candidates, min_cosine)
             scores = {}
             for ranking in (lexical, dense):
