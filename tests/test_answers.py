@@ -163,6 +163,8 @@ def test_source_bound_decimal_operations():
         calculate("sum", [Operand(HIT.id, HIT.text, "125.0", "EUR")], [HIT])
     with pytest.raises(ValueError, match="Unsupported"):
         calculate('__import__("os")', operands, [HIT])
+    with pytest.raises(ValueError, match="strings"):
+        calculate("sum", [Operand(HIT.id, HIT.text, 125.0, "USD millions")], [HIT])
     zero = Hit("zero", "report", "text", 0, 5, "USD: 0", {}, 1)
     with pytest.raises(ValueError, match="zero"):
         calculate("ratio", [Operand("zero", zero.text, "0", "USD")] * 2, [zero])
@@ -254,6 +256,23 @@ def test_medical_units_equivalence_and_compound_measurements():
         def search(self, *args, **kwargs):
             return [hit]
 
+    timing = replace(HIT, text="Median latency was 5 ms.")
+    payload = {
+        "claims": [
+            {
+                "text": "Median latency was 5 milliseconds.",
+                "evidence": [{"source_id": timing.id, "quote": timing.text}],
+            }
+        ]
+    }
+    assert (
+        answer(
+            type("Timing", (), {"search": lambda *_, **__: [timing]})(),
+            "latency",
+            generate=lambda *_: json.dumps(payload),
+        ).status
+        == "cited"
+    )
     for claim in [
         "Dose 50 mg.",
         "Dose 50 milligrams.",

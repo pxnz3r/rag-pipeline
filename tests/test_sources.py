@@ -113,6 +113,21 @@ def test_heading_hierarchy_ignores_fenced_code():
     assert all(text[a:b] and len(context) <= 300 for a, b, context in result)
 
 
+def test_fence_info_line_does_not_close_code_block():
+    from rag_pipeline.sources import headings
+
+    text = (
+        "# Real\n````markdown\n```python\n# Forged inside\n```\n````\n"
+        "```\ncode\n```python\n# Forged after info line\n```\n## Kept\n"
+        "``` not`a fence\n### Also kept\n"
+    )
+    assert [title for _, _, title, _ in headings(text)] == [
+        "Real",
+        "Kept",
+        "Also kept",
+    ]
+
+
 @pytest.mark.parametrize("spelling", ["NaN", "Infinity", "-Infinity"])
 def test_nonfinite_json_numbers_are_not_evidence(tmp_path, spelling):
     path = tmp_path / "invalid.json"

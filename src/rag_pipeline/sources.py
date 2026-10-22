@@ -14,13 +14,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 FORMATS = {".pdf", ".txt", ".md", ".csv", ".json", ".jsonl", ".py", ".sql"}
+# Source code comments, table rows and PDF lines are not Markdown headings.
+HEADING_FORMATS = {".txt", ".md"}
 MAX_BYTES = 20 * 1024 * 1024
 KEY = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,63}$")
 
 
-def metadata(values: dict) -> dict:
-    if not isinstance(values, dict) or len(values) > 32:
-        raise ValueError("Metadata must be an object with at most 32 fields")
+def metadata(values: dict, *, max_fields: int = 32) -> dict:
+    if not isinstance(values, dict) or len(values) > max_fields:
+        raise ValueError(f"Metadata must be an object with at most {max_fields} fields")
     for key, value in values.items():
         if (
             not isinstance(key, str)
@@ -217,13 +219,16 @@ def headings(text):
     stack, fence = [], None
     for line_match in re.finditer(r"[^\n]*(?:\n|$)", text):
         line = line_match[0]
-        marker = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})([^\n]*)", line)
         if marker:
             a, b = marker.span(1)
-            symbol, width = line[a], b - a
+            symbol, width, info = line[a], b - a, marker[2]
             if fence is None:
-                fence = (symbol, width)
-            elif symbol == fence[0] and width >= fence[1]:
+                # CommonMark: a backtick fence's info string cannot contain backticks.
+                if symbol == "~" or "`" not in info:
+                    fence = (symbol, width)
+            elif symbol == fence[0] and width >= fence[1] and not info.strip():
+                # Closing fences carry no info string; "```python" stays content.
                 fence = None
         if fence is None and (
             match := re.match(r"^ {0,3}(#{1,6})[ \t]+(.+?)\s*$", line)

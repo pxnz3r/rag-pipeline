@@ -49,7 +49,7 @@ with Index("processed_data/index.sqlite") as index:
     )
 ```
 
-Use `ingest --contextual` to carry extractive Markdown heading hierarchies into both lexical and dense indexing. Results expose `context` separately; cited `text` and offsets always remain original. This adds no hosted-model cost and stays opt-in. Search distinguishes `C++`, `C#` and `snake_case` symbols.
+Use `ingest --contextual` to carry extractive Markdown heading hierarchies from `.md`/`.txt` sources into both lexical and dense indexing. Results expose `context` separately; cited `text` and offsets always remain original. This adds no hosted-model cost and stays opt-in. Search distinguishes `C++`, `C#` and `snake_case` symbols.
 
 Use `reason --program-format expression` with a configured generator for source-bound quantitative questions. `--route auto` reads complete scoped context when it fits the evidence budget, then falls back to retrieval under that scope. [Reasoning and QA protocol](docs/REASONING.md) explains execution traces and the limits of arithmetic verification.
 
