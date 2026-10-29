@@ -125,6 +125,7 @@ Measured on independent FinQA row judgments, CUAD legal character spans, the ful
 | Doc | What's in it |
 |---|---|
 | [CLI](docs/CLI.md) | Every command and flag |
+| [Python API](docs/API.md) | `Index`, `answer`, `calculate`, `reason`, `Navigation` |
 | [Configuration](docs/CONFIGURATION.md) | Model servers, ONNX graphs, factories, migration |
 | [Architecture](docs/ARCHITECTURE.md) | Storage, transactions, retrieval flow |
 | [Navigation](docs/NAVIGATION.md) | Heading trees, scoped sessions, model examples |
@@ -145,7 +146,7 @@ Enabling heading context or changing the encoder rebuilds the corpus on the next
 
 ## Contributing
 
-See [CONTRIBUTING](CONTRIBUTING.md), [code of conduct](CODE_OF_CONDUCT.md) and [support](SUPPORT.md). CI runs lint, a dependency audit and tests with read-only permissions.
+See [CONTRIBUTING](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) for coding agents, [code of conduct](CODE_OF_CONDUCT.md) and [support](SUPPORT.md). CI runs lint, a dependency audit and tests with read-only permissions.
 
 ## License
 
