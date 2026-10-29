@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Python 3.10 reached end of life in October 2026 and is no longer supported; `requires-python` is now `>=3.11` and CI tests 3.11 and 3.12. On 3.10 the audit tooling could only resolve `filelock` 4.1.0, which has unfixed CVEs (fixes need 3.11+).
+
+- Heading context (`--contextual`) now applies only to Markdown and plain-text sources. Python/SQL comments, CSV/JSON records and PDF lines no longer become section headings or navigation nodes. Contextual indexes rebuild once on the next ingest; plain indexes are unaffected.
+- Fenced code blocks follow CommonMark closing rules: a line such as ```` ```python ```` inside a block is content, not a closing fence, so code comments after it are no longer treated as headings.
+- A metadata sidecar may use all 32 documented fields; the implicit default `title` no longer causes ingestion to fail.
+- Citation unit checks treat `ms` and `milliseconds` as the same unit instead of rejecting correctly cited claims.
+- `calculate` rejects non-string operand fields with a clear `ValueError` instead of an internal `AttributeError`.
+- Verified per-query rankings are identical to 0.6.1 on the FinQA, CUAD and SciFact lexical proxies. Phrase/proximity queries, pseudo-relevance feedback, metadata-prefix changes and convex hybrid fusion were measured and not adopted because none improved all three benchmarks.
+
 ## 0.6.1
 
 - Encode ordinary dense/hybrid queries before opening the evidence snapshot, then recheck model and dimension compatibility. Concurrent publication can checkpoint the WAL during encoding; explicit caller-owned snapshots remain intact.

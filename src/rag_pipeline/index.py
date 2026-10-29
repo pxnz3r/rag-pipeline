@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .sources import (
     FORMATS,
+    HEADING_FORMATS,
     Document,
     contextual_spans,
     document,
@@ -228,7 +229,10 @@ class Index:
                 paths.append(path)
         paths.sort()
         signature = getattr(self.embedder, "signature", "")
-        pipeline = json.dumps(["extract-v4", size, overlap, signature, contextual])
+        # Heading extraction is versioned separately so plain indexes keep their state.
+        pipeline = json.dumps(
+            ["extract-v4", size, overlap, signature, contextual and "headings-v2"]
+        )
         if self.db.in_transaction:
             raise ValueError("Ingest cannot run inside another transaction")
         with self._transaction():
@@ -366,13 +370,19 @@ class Index:
         self.db.execute("DELETE FROM documents WHERE id=?", (doc.id,))
         self.db.execute(
             "INSERT INTO documents VALUES(?,?,?)",
-            (doc.id, doc.fingerprint, json.dumps(metadata(doc.metadata))),
+            # Sidecars allow 32 fields; the implicit default title may be the 33rd.
+            (
+                doc.id,
+                doc.fingerprint,
+                json.dumps(metadata(doc.metadata, max_fields=33)),
+            ),
         )
         self.db.executemany(
             "INSERT INTO document_metadata VALUES(?,?,?)",
             [(doc.id, key, str(value)) for key, value in doc.metadata.items()],
         )
         title = " ".join(str(v) for v in doc.metadata.values())
+        contextual = contextual and Path(doc.id).suffix.lower() in HEADING_FORMATS
         for locator, text in doc.sections:
             section = self.db.execute(
                 "INSERT INTO sections(document,locator,text,chars) VALUES(?,?,?,?)",

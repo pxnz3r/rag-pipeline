@@ -2,7 +2,7 @@
 
 ## Install and scope
 
-Python 3.10+ with SQLite FTS5 is required. Install `pip install .`; add `.[models]` for CPU dense/reranking or `.[generation]` for Groq. Default operations use no hosted inference. Model setup downloads pinned public tokenizer/ONNX files; later use loads the local Hugging Face cache. Groq generation explicitly sends the question, retrieved text and metadata to the vendor. Export keys separately; `.env` files are ignored and are not loaded automatically.
+Python 3.11+ with SQLite FTS5 is required. Install `pip install .`; add `.[models]` for CPU dense/reranking or `.[generation]` for Groq. Default operations use no hosted inference. Model setup downloads pinned public tokenizer/ONNX files; later use loads the local Hugging Face cache. Groq generation explicitly sends the question, retrieved text and metadata to the vendor. Export keys separately; `.env` files are ignored and are not loaded automatically.
 
 Create `data/` explicitly. `rag-pipeline ingest data` synchronizes that **complete directory**, recursively. Empty directories deliberately remove the corpus; absent directories fail. Symlinked files/directories and inaccessible source scans are rejected; no incomplete scan is treated as a complete empty corpus. Use one index per corpus; ingesting another directory into the same index replaces its contents. Scope company/year/jurisdiction/account with adjacent `filename.ext.meta.json` sidecars (up to 32 named short string/integer fields). Account data is retrieved with its row/record labels; metadata sidecars scope a file, not individual CSV fields.
 

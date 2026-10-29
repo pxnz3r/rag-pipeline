@@ -1,4 +1,4 @@
-# Architecture (0.4)
+# Architecture (0.6)
 
 ```
 Local source snapshot → bounded extraction → offsets/chunks → SQLite transaction
@@ -34,7 +34,7 @@ Token late interaction changes the representation rather than merely switching a
 
 The 0.2 JSON/Chroma/LightRAG manifests, cleanup, graph rebuilds, LangChain/Ragas layers and their tests were removed together. Their split-state synchronization and vulnerable dependency paths are no longer part of the declared runtime. Historical audit evidence is retained; no old user store is automatically deleted. No web fetching, OCR, background branch creation or hidden model/service calls occur during ordinary core ingestion/search.
 
-Opt-in contextual indexing prepends a bounded extractive Markdown heading hierarchy to the existing metadata/passage representation. Nested headings reset at their level; fenced code headings are ignored. It does not infer PDF structure, parse source-code ASTs, generate summaries or maintain conversation state. `Hit.context` is separate from original `Hit.text`; generation can quote only original evidence. Headers are indexing guidance, not independently verified evidence. Heading-rich inputs need domain evaluation before enabling it globally.
+Opt-in contextual indexing prepends a bounded extractive Markdown heading hierarchy to the existing metadata/passage representation. It applies only to `.md` and `.txt` sources; Python/SQL comments, CSV/JSON records and PDF lines never become headings. Nested headings reset at their level; fenced code headings are ignored, and fences follow CommonMark closing rules (a ```` ```python ```` line inside a block is content, not a close). It does not infer PDF structure, parse source-code ASTs, generate summaries or maintain conversation state. `Hit.context` is separate from original `Hit.text`; generation can quote only original evidence. Headers are indexing guidance, not independently verified evidence. Heading-rich inputs need domain evaluation before enabling it globally.
 
 The same opt-in path stores original heading parent/child links and exact start/end ranges in an optional `heading_nodes` table. `Navigation.headings` browses this hierarchy under the fixed document scope; parent IDs cannot cross that scope. Source-section deletion cascades into tree deletion. This provides extractive book navigation without paid synthetic summaries; documents without ATX headings retain the original section/search fallback. Navigation can call the deterministic source-bound calculator and return structured computation provenance instead of letting a model invent arithmetic.
 

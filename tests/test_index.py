@@ -357,6 +357,25 @@ def test_extractive_heading_context_is_opt_in_and_not_citation_text(tmp_path):
         assert index.ingest(root, size=300, overlap=30, contextual=True)["changed"] == 0
 
 
+def test_heading_context_skips_source_code_and_accepts_full_sidecars(tmp_path):
+    root = tmp_path / "corpus"
+    code = "import os\n# TODO: remove this hack\n" + "".join(
+        f"def load{i}(path):\n    return open(path).read()\n\n" for i in range(60)
+    )
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "util.py").write_text(code)
+    source(root, "notes.md", "# Guide\n" + "Background. " * 100 + "\nload50 usage.")
+    # The documented 32-field sidecar limit excludes the implicit default title.
+    source(root, "wide.txt", "Wide metadata record.", **{f"k{i}": i for i in range(32)})
+    with Index(tmp_path / "index.sqlite") as index:
+        index.ingest(root, size=300, overlap=30, contextual=True)
+        hits = {h.document: h for h in index.search("load50", k=5)}
+        assert hits["src/util.py"].context == ""
+        assert hits["notes.md"].context == "Guide"
+        wide = index.search("wide metadata", k=1)[0]
+        assert len(wide.metadata) == 33 and wide.metadata["title"] == "wide"
+
+
 def test_v03_migration_preserves_vectors_sources_and_rolls_back_bad_schema(tmp_path):
     from rag_pipeline.index import SCHEMA
 

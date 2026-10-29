@@ -38,6 +38,7 @@ UNIT_ALIASES = {
     "liter": "l",
     "litre": "l",
     "millisecond": "ms",
+    "ms": "ms",
     "sec": "second",
     "min": "minute",
     "hr": "hour",
@@ -297,6 +298,8 @@ def calculate(operation: str, operands: list[Operand], sources: list[Hit]) -> di
     known = {s.id: s for s in sources}
     units, values = set(), []
     for item in operands:
+        if any(not isinstance(v, str) for v in vars(item).values()):
+            raise ValueError("Operand source_id, quote, value and unit must be strings")
         source = known.get(item.source_id)
         if (
             not source
