@@ -12,6 +12,8 @@ from .answers import Operand, answer, calculate
 from .configuration import load_config, provider
 from .evaluation import evaluate
 from .index import Index
+from .presets import PRESETS
+from .presets import config as preset_config
 from .reasoning import reason
 
 
@@ -22,6 +24,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--config", type=Path, help="Explicit JSON pipeline/provider configuration."
+    )
+    parser.add_argument(
+        "--preset",
+        choices=sorted(PRESETS),
+        help="Named measured stack; --config sections override its sections.",
     )
     parser.add_argument(
         "--index", type=Path, default=Path("processed_data/index.sqlite")
@@ -149,7 +156,8 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        config = load_config(args.config) if args.config else {}
+        config = preset_config(args.preset) if args.preset else {}
+        config.update(load_config(args.config) if args.config else {})
         search = dict(config.get("search", {}))
         for key, default in {
             "k": 5,

@@ -15,6 +15,7 @@ __all__ = [
     "execute_expression",
     "reason",
     "reason_from_sources",
+    "preset",
 ]
 
 
@@ -39,6 +40,10 @@ def __getattr__(name):
         from . import answers
 
         return getattr(answers, name)
+    if name == "preset":
+        from .presets import preset
+
+        return preset
     if name == "evaluate_rankings":
         from .retrieval_metrics import evaluate_rankings
 

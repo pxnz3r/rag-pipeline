@@ -387,6 +387,29 @@ class ONNXEmbedding(_ONNX):
         return values
 
 
+class BGESmall(ONNXEmbedding):
+    """BAAI bge-small-en-v1.5, int8 ONNX export, CLS pooling, 512 tokens.
+
+    The int8 graph (Xenova's conversion, pinned) encodes about 2x faster than
+    fp32 on CPU at equal BEIR NDCG@10. Queries take the model's retrieval
+    instruction; passages take none.
+    """
+
+    def __init__(self, threads=None, providers=None):
+        super().__init__(
+            model="Xenova/bge-small-en-v1.5",
+            revision="ea104dacec62c0de699686887e3f920caeb4f3e3",
+            weights="onnx/model_quantized.onnx",
+            dimensions=384,
+            length=512,
+            pooling="cls",
+            query_prefix="Represent this sentence for searching relevant passages: ",
+            batch_size=4,
+            threads=threads,
+            providers=providers,
+        )
+
+
 class ONNXReranker(ONNXEmbedding):
     """Configured cross-encoder output; multiclass scoring is explicit."""
 
