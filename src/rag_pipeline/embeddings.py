@@ -450,3 +450,22 @@ class ONNXReranker(ONNXEmbedding):
                 raise ValueError("Non-finite ONNX reranking scores")
             values[positions] = scores
         return values
+
+
+class GTEReranker(ONNXReranker):
+    """Alibaba gte-reranker-modernbert-base cross-encoder, fp32, 512 tokens.
+
+    Measured on BEIR it is the only small open reranker here that improves the
+    hybrid route; its published and locally quantized int8 graphs lose that
+    gain, so it runs fp32. Scores are logits, not probabilities.
+    """
+
+    def __init__(self, threads=None, providers=None):
+        super().__init__(
+            model="Alibaba-NLP/gte-reranker-modernbert-base",
+            revision="f7481e6055501a30fb19d090657df9ec1f79ab2c",
+            length=512,
+            batch_size=1,
+            threads=threads,
+            providers=providers,
+        )

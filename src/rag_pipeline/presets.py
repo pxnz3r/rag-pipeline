@@ -19,6 +19,21 @@ PRESETS = {
         "embedding": {"kind": "python", "factory": "rag_pipeline.embeddings:BGESmall"},
         "search": {"mode": "hybrid", "fusion": "relative", "dense_weight": 0.6},
     },
+    # The hybrid route, then a gte-reranker cross-encoder over the top 20 chunks.
+    # Seconds per query on CPU: worth it when precision matters more than time.
+    "rerank": {
+        "embedding": {"kind": "python", "factory": "rag_pipeline.embeddings:BGESmall"},
+        "reranker": {
+            "kind": "python",
+            "factory": "rag_pipeline.embeddings:GTEReranker",
+        },
+        "search": {
+            "mode": "hybrid",
+            "fusion": "relative",
+            "dense_weight": 0.6,
+            "rerank_candidates": 20,
+        },
+    },
 }
 
 
