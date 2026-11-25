@@ -211,6 +211,11 @@ def main():
         "--option", action="append", default=[], help="Extra search option key=json"
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--cache-reranker",
+        action="store_true",
+        help="Encode passage tokens once for a late-interaction reranker",
+    )
     args = parser.parse_args()
 
     data = json.loads(args.dataset.read_text(encoding="utf-8"))
@@ -233,6 +238,10 @@ def main():
             args.work / f"{name}-corpus", size=args.size, overlap=args.overlap
         )
         ingest_seconds = time.perf_counter() - started
+        started = time.perf_counter()
+        if args.cache_reranker:
+            index.prepare_reranker_cache()
+        cache_seconds = time.perf_counter() - started
         queries = data["queries"][: args.limit or None]
         search = dict(
             mode=args.mode,
@@ -263,6 +272,7 @@ def main():
         "chunks": stats["chunks"],
         "changed": stats["changed"],
         "ingest_seconds": round(ingest_seconds, 2),
+        "reranker_cache_seconds": round(cache_seconds, 2),
         f"ndcg@{args.k}": round(metrics["ndcg_at_k"], 4),
         f"recall@{args.k}": round(metrics["recall_at_k"], 4),
         f"mrr@{args.k}": round(metrics["mrr_at_k"], 4),
