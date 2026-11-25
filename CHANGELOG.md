@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add named presets: `--preset lexical|hybrid|rerank` on the CLI and `rag_pipeline.preset(name)` in Python. A preset is a bundled configuration; `--config` sections override its sections, and nothing is selected unless a preset or provider is named. Measurements are in [testing](docs/TESTING.md).
+- Add relative-score fusion (`fusion="relative"`, min-max normalized BM25 and cosine) and `dense_weight` for both fusion methods. Defaults keep the previous unweighted RRF ranking exactly.
+- Add `rerank_candidates`: the reranker rescores only the top fused chunks and the rest keep their fused order below them.
+- Filtered dense queries select rows of the in-memory vector matrix instead of streaming every scoped vector from SQLite; streamed blocks unpack in one buffer per 4,096 rows.
+- ONNX adapters run small batches as concurrent single-threaded sessions on every available CPU (`threads=None`), and ingest encodes 256-chunk windows sorted by length. With int8 weights, SciFact ingest with a bge-small-sized encoder fell from 660 s to 118 s on 4 cores.
+- Documents parse a bounded window ahead on worker threads, so PDF extraction subprocesses overlap each other and encoding.
+- `evaluate_rankings` accepts graded judgments and computes NDCG with linear gains; `scripts/prepare_beir.py` and `scripts/benchmark_beir.py` reproduce the BEIR SciFact, NFCorpus and FiQA measurements from pinned mirrors.
+
 - Python 3.10 reached end of life in October 2026 and is no longer supported; `requires-python` is now `>=3.11` and CI tests 3.11 and 3.12. On 3.10 the audit tooling could only resolve `filelock` 4.1.0, which has unfixed CVEs (fixes need 3.11+).
 
 - Heading context (`--contextual`) now applies only to Markdown and plain-text sources. Python/SQL comments, CSV/JSON records and PDF lines no longer become section headings or navigation nodes. Contextual indexes rebuild once on the next ingest; plain indexes are unaffected.
