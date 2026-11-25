@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
+
+
+def _cpus():
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:  # macOS and Windows have no affinity call.
+        return os.cpu_count() or 1
 
 
 class _ONNX:
     batch_size = 8
     weights = "onnx/model.onnx"
+    # Small batches run as concurrent single-threaded sessions: on CPU that
+    # beats one session spreading every small matrix across all cores.
+    concurrent = True
 
     def __init__(self, threads=None, providers=None):
-        """``threads=None`` lets ONNX Runtime use one thread per physical core."""
+        """``threads`` CPU threads in total; ``None`` uses every available CPU."""
         import onnxruntime as ort
         from huggingface_hub import hf_hub_download
         from tokenizers import Tokenizer
@@ -35,42 +48,62 @@ class _ONNX:
         )
         self.tokenizer.enable_truncation(max_length=self.length)
         self.tokenizer.enable_padding()
+        self.workers = threads or min(_cpus(), 64)
+        concurrent = self.concurrent and self.workers > 1
         options = ort.SessionOptions()
-        options.intra_op_num_threads = threads or 0
+        options.intra_op_num_threads = 1 if concurrent else self.workers
         options.inter_op_num_threads = 1
         self.session = ort.InferenceSession(
             hf_hub_download(self.model, self.weights, revision=self.revision),
             sess_options=options,
             providers=providers or ["CPUExecutionProvider"],
         )
+        self._pool = (
+            ThreadPoolExecutor(self.workers, thread_name_prefix="rag-onnx")
+            if concurrent
+            else None
+        )
 
     def _batches(self, texts):
+        """(output, attention mask, original positions) per length-sorted batch."""
         order = sorted(
             range(len(texts)),
             key=lambda i: (
                 len(texts[i]) if isinstance(texts[i], str) else sum(map(len, texts[i]))
             ),
         )
-        for offset in range(0, len(texts), self.batch_size):
-            positions = order[offset : offset + self.batch_size]
+        groups = [
+            order[offset : offset + self.batch_size]
+            for offset in range(0, len(texts), self.batch_size)
+        ]
+        names = [i.name for i in self.session.get_inputs()]
+        outputs = [self.output_name] if hasattr(self, "output_name") else None
+        feeds = []
+        # Tokenize on this thread; padding is per batch, so batches stay tight.
+        for positions in groups:
             tokens = self.tokenizer.encode_batch([texts[i] for i in positions])
-            feeds = {
-                "input_ids": np.array([t.ids for t in tokens], dtype=np.int64),
-                "attention_mask": np.array(
-                    [t.attention_mask for t in tokens], dtype=np.int64
-                ),
-                "token_type_ids": np.array(
-                    [t.type_ids for t in tokens], dtype=np.int64
-                ),
-            }
-            yield (
-                self.session.run(
-                    [self.output_name] if hasattr(self, "output_name") else None,
-                    {i.name: feeds[i.name] for i in self.session.get_inputs()},
-                )[0],
-                feeds["attention_mask"],
-                positions,
+            feeds.append(
+                {
+                    "input_ids": np.array([t.ids for t in tokens], dtype=np.int64),
+                    "attention_mask": np.array(
+                        [t.attention_mask for t in tokens], dtype=np.int64
+                    ),
+                    "token_type_ids": np.array(
+                        [t.type_ids for t in tokens], dtype=np.int64
+                    ),
+                }
             )
+
+        def run(feed):
+            return self.session.run(outputs, {name: feed[name] for name in names})[0]
+
+        results = (
+            self._pool.map(run, feeds)
+            if self._pool and len(feeds) > 1
+            else map(run, feeds)
+        )
+        for positions, feed, output in zip(groups, feeds, results):
+            yield output, feed["attention_mask"], positions
 
 
 class MiniLM(_ONNX):
@@ -136,6 +169,7 @@ class ColBERT(_ONNX):
     punctuation masking follow the checkpoint's ColBERT training configuration.
     """
 
+    concurrent = False  # _tokens runs its own batch loop on one session.
     model = "answerdotai/answerai-colbert-small-v1"
     revision = "934fa8bb4ce2284f4c2baa232d81aca4d076fa5e"
     # onnx/model.onnx exposes the backbone's 384D states, not ColBERT vectors.

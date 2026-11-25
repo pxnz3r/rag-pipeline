@@ -62,7 +62,17 @@ def models():
                 length=512,
                 pooling="cls",
                 query_prefix=bge_query,
-                batch_size=32,
+                batch_size=4,
+            ),
+            "bge-small-q8": onnx(
+                "Xenova/bge-small-en-v1.5",
+                "ea104dacec62c0de699686887e3f920caeb4f3e3",
+                weights="onnx/model_quantized.onnx",
+                dimensions=384,
+                length=512,
+                pooling="cls",
+                query_prefix=bge_query,
+                batch_size=4,
             ),
             "bge-base": onnx(
                 "BAAI/bge-base-en-v1.5",
@@ -71,7 +81,7 @@ def models():
                 length=512,
                 pooling="cls",
                 query_prefix=bge_query,
-                batch_size=32,
+                batch_size=4,
             ),
             "arctic-s": onnx(
                 "Snowflake/snowflake-arctic-embed-s",
@@ -80,7 +90,7 @@ def models():
                 length=512,
                 pooling="cls",
                 query_prefix=bge_query,
-                batch_size=32,
+                batch_size=4,
             ),
             "arctic-m-v1.5": onnx(
                 "Snowflake/snowflake-arctic-embed-m-v1.5",
@@ -89,7 +99,7 @@ def models():
                 length=512,
                 pooling="cls",
                 query_prefix=bge_query,
-                batch_size=32,
+                batch_size=4,
             ),
             "arctic-m-v2": onnx(
                 "Snowflake/snowflake-arctic-embed-m-v2.0",
@@ -98,7 +108,7 @@ def models():
                 length=512,
                 pooling="cls",
                 query_prefix="query: ",
-                batch_size=16,
+                batch_size=4,
             ),
             "nomic-v1.5": onnx(
                 "nomic-ai/nomic-embed-text-v1.5",
@@ -108,7 +118,7 @@ def models():
                 pooling="mean",
                 query_prefix="search_query: ",
                 passage_prefix="search_document: ",
-                batch_size=16,
+                batch_size=4,
             ),
             "gte-modernbert": onnx(
                 "Alibaba-NLP/gte-modernbert-base",
@@ -116,7 +126,7 @@ def models():
                 dimensions=768,
                 length=512,
                 pooling="cls",
-                batch_size=16,
+                batch_size=4,
             ),
             "embeddinggemma": onnx(
                 "onnx-community/embeddinggemma-300m-ONNX",
@@ -127,7 +137,7 @@ def models():
                 output_index=1,
                 query_prefix="task: search result | query: ",
                 passage_prefix="title: none | text: ",
-                batch_size=16,
+                batch_size=4,
             ),
             "ms-marco-minilm": lambda threads: e.CrossEncoder(threads=threads),
             "colbert-small": lambda threads: e.ColBERT(threads=threads),
@@ -135,31 +145,31 @@ def models():
                 "Alibaba-NLP/gte-reranker-modernbert-base",
                 "f7481e6055501a30fb19d090657df9ec1f79ab2c",
                 length=512,
-                batch_size=16,
+                batch_size=4,
             ),
             "mxbai-xsmall": rerank(
                 "mixedbread-ai/mxbai-rerank-xsmall-v1",
                 "b5c6e9da73abc3711f593f705371cdbe9e0fe422",
                 length=512,
-                batch_size=16,
+                batch_size=4,
             ),
             "mxbai-base": rerank(
                 "mixedbread-ai/mxbai-rerank-base-v1",
                 "800f24c113213a187e65bde9db00c15a2bb12738",
                 length=512,
-                batch_size=16,
+                batch_size=4,
             ),
             "bge-reranker-base": rerank(
                 "BAAI/bge-reranker-base",
                 "2cfc18c9415c912f9d8155881c133215df768a70",
                 length=512,
-                batch_size=16,
+                batch_size=4,
             ),
             "jina-turbo": rerank(
                 "jinaai/jina-reranker-v1-turbo-en",
                 "b8c14f4e723d9e0aab4732a7b7b93741eeeb77c2",
                 length=512,
-                batch_size=16,
+                batch_size=4,
             ),
         }
     )

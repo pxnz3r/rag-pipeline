@@ -445,7 +445,8 @@ class Index:
                         context,
                     )
                 )
-                if len(batch) == 32:
+                # A wide window lets encoders sort by length and pad tightly.
+                if len(batch) == 256:
                     self._insert_chunks(batch)
                     batch.clear()
 

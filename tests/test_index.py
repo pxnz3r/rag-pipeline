@@ -516,12 +516,12 @@ def test_embedding_batches_cross_documents_with_atomic_failure(tmp_path):
             return super().encode(texts)
 
     root = tmp_path / "corpus"
-    for i in range(40):
-        source(root, f"{i:02}.txt", "Revenue increased.")
+    for i in range(300):
+        source(root, f"{i:03}.txt", "Revenue increased.")
     model = Batched()
     with Index(tmp_path / "index.sqlite", model) as index:
         index.ingest(root)
-        assert model.batches == [32, 8]
+        assert model.batches == [256, 44]
         before = index.status()
         for p in root.glob("*.txt"):
             p.write_text("Revenue changed.")
