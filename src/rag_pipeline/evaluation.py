@@ -84,6 +84,9 @@ def evaluate(
         "context_chars",
         "diversify",
         "match",
+        "fusion",
+        "dense_weight",
+        "rerank_candidates",
     }:
         raise ValueError("Unknown evaluation search option")
     data = json.loads(Path(dataset).read_text(encoding="utf-8"))
@@ -197,7 +200,14 @@ def evaluate(
                 "split": split,
                 "documents": len(docs),
                 "chunks": stats["chunks"],
-                "retrieval": evaluate_rankings(rankings, qrels, k) if qrels else None,
+                "retrieval": evaluate_rankings(
+                    rankings,
+                    qrels,
+                    k,
+                    {q["id"]: q["grades"] for q in queries if q.get("grades")},
+                )
+                if qrels
+                else None,
                 "span_retrieval": {
                     "queries": len(spans),
                     **{

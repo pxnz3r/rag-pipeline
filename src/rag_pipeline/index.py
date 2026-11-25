@@ -9,6 +9,8 @@ import os
 import re
 import sqlite3
 import tempfile
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -47,6 +49,30 @@ STOP = set(
 
 def _walk_error(error):
     raise error
+
+
+def _parse(paths, root, existing):
+    """Documents in path order, parsed a bounded window ahead on worker threads.
+
+    PDF extraction runs in subprocesses, so threads overlap it with encoding
+    and with each other. The window bounds how many parsed documents wait in
+    memory; an error cancels the queued work and surfaces in order.
+    """
+    workers = min(8, os.cpu_count() or 1)
+    pool = ThreadPoolExecutor(workers, thread_name_prefix="rag-parse")
+    pending = deque()
+    try:
+        for path in paths:
+            previous = (
+                existing.get(path.relative_to(root).as_posix()) if existing else None
+            )
+            pending.append(pool.submit(document, path, root, previous))
+            if len(pending) > 2 * workers:
+                yield pending.popleft().result()
+        while pending:
+            yield pending.popleft().result()
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
 
 
 @dataclass(frozen=True)
@@ -268,14 +294,7 @@ class Index:
                             "INSERT OR REPLACE INTO state VALUES('dimension',?)",
                             (dimension,),
                         )
-                    for path in paths:
-                        doc = document(
-                            path,
-                            root,
-                            None
-                            if rebuild
-                            else existing.get(path.relative_to(root).as_posix()),
-                        )
+                    for doc in _parse(paths, root, None if rebuild else existing):
                         seen.add(doc.id)
                         if not rebuild and existing.get(doc.id) == doc.fingerprint:
                             continue
@@ -493,6 +512,7 @@ class Index:
         return values / norms
 
     def _dense_ranking(self, query, clause, args, candidates, min_cosine):
+        """(chunk id, cosine) pairs, best first; ties break on id."""
         import numpy as np
 
         def top(scores, ids):
@@ -504,69 +524,94 @@ class Index:
                 candidates, [(-float(scores[i]), ids[i]) for i in positions]
             )
 
-        def unpack(rows):
-            block = np.stack([np.frombuffer(r[1], dtype="<f4") for r in rows])
-            if (
-                block.shape[1] != len(query)
-                or not np.isfinite(block).all()
-                or not np.allclose(np.linalg.norm(block, axis=1), 1, atol=1e-3)
+        def unpack(blobs):
+            # One buffer per block: per-row frombuffer/stack dominated scan time.
+            block = np.frombuffer(b"".join(blobs), dtype="<f4")
+            if block.size != len(blobs) * len(query):
+                raise ValueError("Corrupt stored vectors")
+            block = block.reshape(len(blobs), len(query))
+            if not np.isfinite(block).all() or not np.allclose(
+                np.einsum("ij,ij->i", block, block), 1, atol=2e-3
             ):
                 raise ValueError("Corrupt stored vectors")
             return block
 
+        def scores(matrix):
+            # Row-wise einsum keeps each cosine bitwise identical across cached,
+            # filtered and streamed blocks, so cutoff ties never depend on the path.
+            return np.einsum("ij,j->i", matrix, query)
+
+        scope = (
+            "FROM chunks c JOIN sections s ON s.id=c.section "
+            "JOIN documents d ON d.id=s.document WHERE c.vector IS NOT NULL" + clause
+        )
+        cached = self._dense_matrix(len(query), unpack)
+        if cached is not None:
+            matrix, ids, rowids = cached
+            if not clause:
+                return [(c, -s) for s, c in top(scores(matrix), ids)]
+            # Scope selects rows of the cached matrix instead of streaming blobs.
+            allowed = np.fromiter(
+                (r[0] for r in self.db.execute("SELECT c.rowid " + scope, args)),
+                dtype=np.int64,
+            )
+            positions = np.searchsorted(rowids, allowed)
+            if len(allowed) and (
+                positions.max() >= len(rowids) or (rowids[positions] != allowed).any()
+            ):
+                raise ValueError("Dense cache does not match the index snapshot")
+            best = top(scores(matrix[positions]), [ids[p] for p in positions])
+            return [(c, -s) for s, c in best]
+        cursor = self.db.execute("SELECT c.id,c.vector " + scope, args)
+        best = []
+        while rows := cursor.fetchmany(4096):
+            block = unpack([r[1] for r in rows])
+            best = heapq.nsmallest(
+                candidates, best + top(scores(block), [r[0] for r in rows])
+            )
+        return [(c, -s) for s, c in best]
+
+    def _dense_matrix(self, dimension, unpack):
+        """All stored vectors in memory when they fit the budget, else None.
+
+        Keyed on the generation, this connection's writes and SQLite's data
+        version, so any committed change rebuilds it on the next query.
+        """
+        import numpy as np
+
         if not self.vector_cache_bytes:
             self._dense_cache = None
+            return None
         token = (
             self._state("generation"),
             self.db.total_changes,
             self.db.execute("PRAGMA data_version").fetchone()[0],
-            len(query),
+            dimension,
             self.vector_cache_bytes,
         )
-        cached = None
-        if not clause and self.vector_cache_bytes:
-            if self._dense_cache is None or self._dense_cache[0] != token:
-                self._dense_cache = (token, None)
-                count, chars = self.db.execute(
-                    "SELECT COUNT(*),COALESCE(SUM(length(id)),0) FROM chunks"
-                ).fetchone()
-                # Conservative allowance for IDs, references, scores and selection
-                # temporaries; model/native/SQLite allocations are separate.
-                if (
-                    count * (4 * len(query) + 256) + 4 * chars
-                    <= self.vector_cache_bytes
-                ):
-                    matrix = np.empty((count, len(query)), dtype="<f4")
-                    ids, offset = [], 0
-                    cursor = self.db.execute(
-                        "SELECT id,vector FROM chunks WHERE vector IS NOT NULL"
-                    )
-                    while rows := cursor.fetchmany(512):
-                        block = unpack(rows)
-                        matrix[offset : offset + len(rows)] = block
-                        ids.extend(r[0] for r in rows)
-                        offset += len(rows)
-                    self._dense_cache = (token, (matrix[:offset], ids))
-            cached = self._dense_cache[1]
-        if cached is not None:
-            matrix, ids = cached
-            best = top(np.einsum("ij,j->i", matrix, query), ids)
-        else:
-            cursor = self.db.execute(
-                "SELECT c.id,c.vector FROM chunks c JOIN sections s ON s.id=c.section "
-                "JOIN documents d ON d.id=s.document WHERE c.vector IS NOT NULL"
-                + clause,
-                args,
-            )
-            best = []
-            while rows := cursor.fetchmany(512):
-                matrix = unpack(rows)
-                best = heapq.nsmallest(
-                    candidates,
-                    best
-                    + top(np.einsum("ij,j->i", matrix, query), [r[0] for r in rows]),
-                )
-        return [cid for _, cid in best]
+        if self._dense_cache is not None and self._dense_cache[0] == token:
+            return self._dense_cache[1]
+        self._dense_cache = (token, None)
+        count, chars = self.db.execute(
+            "SELECT COUNT(*),COALESCE(SUM(length(id)),0) FROM chunks"
+        ).fetchone()
+        # Conservative allowance for IDs, rowids, references, scores and selection
+        # temporaries; model/native/SQLite allocations are separate.
+        if count * (4 * dimension + 264) + 4 * chars > self.vector_cache_bytes:
+            return None
+        matrix = np.empty((count, dimension), dtype="<f4")
+        rowids = np.empty(count, dtype=np.int64)
+        ids, offset = [], 0
+        cursor = self.db.execute(
+            "SELECT rowid,id,vector FROM chunks WHERE vector IS NOT NULL ORDER BY rowid"
+        )
+        while rows := cursor.fetchmany(4096):
+            matrix[offset : offset + len(rows)] = unpack([r[2] for r in rows])
+            rowids[offset : offset + len(rows)] = [r[0] for r in rows]
+            ids.extend(r[1] for r in rows)
+            offset += len(rows)
+        self._dense_cache = (token, (matrix[:offset], ids, rowids[:offset]))
+        return self._dense_cache[1]
 
     @staticmethod
     def _filters(filters):
@@ -591,7 +636,20 @@ class Index:
         context_chars=1800,
         diversify=True,
         distinct_documents=False,
+        fusion="rrf",
+        dense_weight=0.5,
+        rerank_candidates=None,
     ) -> list[Hit]:
+        """Rank chunks, then return up to ``k`` original evidence windows.
+
+        Each channel retrieves ``candidates`` chunks. ``fusion="rrf"`` adds
+        weighted reciprocal ranks; ``"relative"`` adds min-max normalized
+        scores (BM25 and cosine), weighted by ``dense_weight``. A reranker
+        rescoring the top ``rerank_candidates`` fused chunks decides their
+        order; the rest keep the fused order behind them.
+        """
+        if rerank_candidates is None:
+            rerank_candidates = candidates
         if (
             not isinstance(question, str)
             or len(question) > 4000
@@ -607,6 +665,13 @@ class Index:
             or not -1 <= min_cosine <= 1
             or not isinstance(diversify, bool)
             or not isinstance(distinct_documents, bool)
+            or fusion not in {"rrf", "relative"}
+            or not isinstance(dense_weight, (int, float))
+            or isinstance(dense_weight, bool)
+            or not 0 <= dense_weight <= 1
+            or not isinstance(rerank_candidates, int)
+            or isinstance(rerank_candidates, bool)
+            or not 1 <= rerank_candidates <= candidates
         ):
             raise ValueError("Invalid search parameters")
         if mode in {"dense", "hybrid"} and not self.embedder:
@@ -649,9 +714,9 @@ class Index:
                     '"' + t + '"' for t in terms
                 )
                 lexical = [
-                    r[0]
+                    (r[0], -r[1])
                     for r in self.db.execute(
-                        "SELECT c.id FROM fts JOIN chunks c ON c.rowid=fts.rowid "
+                        "SELECT c.id,fts.rank FROM fts JOIN chunks c ON c.rowid=fts.rowid "
                         "JOIN sections s ON s.id=c.section JOIN documents d ON d.id=s.document "
                         "WHERE fts MATCH ?" + clause + " ORDER BY fts.rank LIMIT ?",
                         [expression, *args, candidates],
@@ -666,9 +731,18 @@ class Index:
                     raise ValueError("Embedding dimensions changed; create a new index")
                 dense = self._dense_ranking(query, clause, args, candidates, min_cosine)
             scores = {}
-            for ranking in (lexical, dense):
-                for rank, cid in enumerate(ranking, 1):
-                    scores[cid] = scores.get(cid, 0) + 1 / (60 + rank)
+            for ranking, weight in ((lexical, 1 - dense_weight), (dense, dense_weight)):
+                if not ranking or not weight:
+                    continue
+                if fusion == "rrf":
+                    # Weight 0.5 per channel keeps the classic 1/(60+rank) sum.
+                    for rank, (cid, _) in enumerate(ranking, 1):
+                        scores[cid] = scores.get(cid, 0) + 2 * weight / (60 + rank)
+                else:
+                    low, high = ranking[-1][1], ranking[0][1]
+                    for cid, value in ranking:
+                        relative = (value - low) / (high - low) if high > low else 1
+                        scores[cid] = scores.get(cid, 0) + weight * relative
             order = sorted(scores, key=lambda c: (-scores[c], c))[:candidates]
             rows = {}
             for offset in range(0, len(order), 256):
@@ -687,18 +761,23 @@ class Index:
 
                 from .token_cache import score
 
+                head, tail = order[:rerank_candidates], order[rerank_candidates:]
                 ranked = np.asarray(
                     score(
                         self,
                         question,
-                        order,
-                        [self._passage(rows[cid]) for cid in order],
+                        head,
+                        [self._passage(rows[cid]) for cid in head],
                     )
                 )
-                if ranked.shape != (len(order),) or not np.isfinite(ranked).all():
+                if ranked.shape != (len(head),) or not np.isfinite(ranked).all():
                     raise ValueError("Invalid reranker scores")
-                scores = {cid: float(score) for cid, score in zip(order, ranked)}
-                order.sort(key=lambda cid: (-scores[cid], cid))
+                scores = {cid: float(score) for cid, score in zip(head, ranked)}
+                head.sort(key=lambda cid: (-scores[cid], cid))
+                # Unscored candidates rank below every rescored one.
+                floor = min(scores.values()) - 1
+                scores.update({cid: floor for cid in tail})
+                order = head + tail
             selected, hits, documents = [], [], set()
             for cid in order:
                 row = rows[cid]

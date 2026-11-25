@@ -9,12 +9,13 @@ class _ONNX:
     batch_size = 8
     weights = "onnx/model.onnx"
 
-    def __init__(self, threads=2, providers=None):
+    def __init__(self, threads=None, providers=None):
+        """``threads=None`` lets ONNX Runtime use one thread per physical core."""
         import onnxruntime as ort
         from huggingface_hub import hf_hub_download
         from tokenizers import Tokenizer
 
-        if (
+        if threads is not None and (
             not isinstance(threads, int)
             or isinstance(threads, bool)
             or not 1 <= threads <= 64
@@ -35,7 +36,7 @@ class _ONNX:
         self.tokenizer.enable_truncation(max_length=self.length)
         self.tokenizer.enable_padding()
         options = ort.SessionOptions()
-        options.intra_op_num_threads = threads
+        options.intra_op_num_threads = threads or 0
         options.inter_op_num_threads = 1
         self.session = ort.InferenceSession(
             hf_hub_download(self.model, self.weights, revision=self.revision),
@@ -258,7 +259,7 @@ class ONNXEmbedding(_ONNX):
         passage_prefix="",
         output_index=0,
         batch_size=8,
-        threads=2,
+        threads=None,
         providers=None,
     ):
         import json

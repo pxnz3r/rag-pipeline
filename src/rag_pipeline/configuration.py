@@ -49,6 +49,9 @@ def load_config(path):
             "distinct_documents",
             "mode",
             "match",
+            "fusion",
+            "dense_weight",
+            "rerank_candidates",
         },
         "answer": {"max_evidence_chars", "context_order", "reasoning_constants"},
     }.items():

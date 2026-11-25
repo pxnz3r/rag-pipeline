@@ -192,6 +192,11 @@ def test_dense_roundtrip_filtering_and_model_consistency(tmp_path, corpus):
         {"context_chars": 0},
         {"min_cosine": float("nan")},
         {"filters": {"bad.key": "value"}},
+        {"fusion": "max"},
+        {"dense_weight": 1.5},
+        {"dense_weight": True},
+        {"rerank_candidates": 0},
+        {"rerank_candidates": 41},
     ],
 )
 def test_invalid_search_parameters(tmp_path, kwargs):
@@ -237,6 +242,45 @@ def test_reranker_order_and_invalid_scores(tmp_path, corpus):
         with pytest.raises(ValueError, match="reranker"):
             index.search("Revenue")
         assert index.status()["documents"] == 2
+
+
+def test_reranker_rescores_only_the_fused_head(tmp_path):
+    root = tmp_path / "corpus"
+    for i in range(6):
+        source(root, f"{i}.txt", "revenue " * (6 - i) + f"marker{i}")
+    seen = []
+
+    class Ranker:
+        def score(self, question, texts):
+            seen.append(len(texts))
+            return [1 if "marker2" in text else 0 for text in texts]
+
+    with Index(tmp_path / "index.sqlite", reranker=Ranker()) as index:
+        index.ingest(root)
+        hits = index.search("revenue", k=6, rerank_candidates=3)
+        # Top three by BM25 are 0, 1, 2; the reranker lifts 2, the rest keep order.
+        assert seen == [3]
+        assert [h.document for h in hits] == [f"{i}.txt" for i in (2, 0, 1, 3, 4, 5)]
+        assert hits[2].score > hits[3].score
+
+
+def test_fusion_weights_and_relative_scores(tmp_path, corpus):
+    source(corpus, "c/lease.txt", "The lease term is ten years.", company="C")
+    with Index(tmp_path / "index.sqlite", Encoder()) as index:
+        index.ingest(corpus)
+        rrf = index.search("revenue lease", mode="hybrid", k=3)
+        # Default weights keep the classic unweighted 1/(60 + rank) sum.
+        assert rrf[0].score == pytest.approx(1 / 61 + 1 / 62)
+        lexical_only = index.search(
+            "lease", mode="hybrid", k=3, fusion="relative", dense_weight=0
+        )
+        assert [h.document for h in lexical_only] == ["c/lease.txt"]
+        dense_only = index.search(
+            "lease", mode="hybrid", k=3, fusion="relative", dense_weight=1
+        )
+        assert dense_only[0].document == "c/lease.txt"
+        assert dense_only[0].score == pytest.approx(1)
+        assert len(dense_only) == 3
 
 
 def test_empty_dense_index_and_context_smaller_than_chunk(tmp_path):
@@ -574,6 +618,37 @@ def test_dense_cache_matches_streaming_and_invalidates_with_wal_snapshot(tmp_pat
         )
         with pytest.raises(ValueError, match="Corrupt"):
             reader.search("Lease", mode="dense")
+
+
+def test_filtered_dense_search_uses_the_cache_and_matches_streaming(tmp_path):
+    root = tmp_path / "corpus"
+    rng = np.random.default_rng(7)
+    for i in range(40):
+        source(root, f"{i:02d}.txt", f"note {i} " + "word " * i, group=str(i % 3))
+
+    class Random:
+        signature = "test:random:v1"
+
+        def encode(self, texts):
+            return rng.normal(size=(len(texts), 8))
+
+    path = tmp_path / "index.sqlite"
+    with Index(path, Random()) as index:
+        index.ingest(root)
+    query = {"min_cosine": -1, "k": 10, "candidates": 20, "mode": "dense"}
+    with (
+        Index(path, Random()) as cached,
+        Index(path, Random(), vector_cache_bytes=0) as streamed,
+    ):
+        cached.embedder.encode_queries = streamed.embedder.encode_queries = (
+            lambda texts: np.ones((len(texts), 8))
+        )
+        for filters in (None, {"group": "1"}, {"group": "missing"}):
+            a = cached.search("note", filters=filters, **query)
+            b = streamed.search("note", filters=filters, **query)
+            assert [(h.id, h.score) for h in a] == [(h.id, h.score) for h in b]
+            assert all(filters is None or h.metadata["group"] == "1" for h in a)
+        assert cached._dense_cache[1] is not None and streamed._dense_cache is None
 
 
 @pytest.mark.parametrize("mode", ["dense", "hybrid"])
