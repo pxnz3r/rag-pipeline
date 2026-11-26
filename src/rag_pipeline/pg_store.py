@@ -13,9 +13,10 @@ FORCE ROW LEVEL SECURITY against ``rag.tenant``, set per connection: tenant
 scoping lives in the database, not in query code. Connect as a role without
 superuser or BYPASSRLS, which skip row security.
 
-Lexical ranking is Postgres full text (``ts_rank_cd``), not BM25; dense
-search uses an HNSW index per vector dimension. Fusion, reranking and
-evidence windows are the shared code from ``index``.
+Lexical ranking is BM25 over a postings table of stemmed English lexemes
+(SciFact NDCG@10 0.687, FTS5 0.682); dense search uses an HNSW index per
+vector dimension. Fusion, reranking and evidence windows are the shared code
+from ``index``.
 """
 
 from __future__ import annotations
@@ -40,7 +41,10 @@ TABLES = (
     "rag_document_metadata",
     "rag_sections",
     "rag_chunks",
+    "rag_terms",
 )
+# BM25 parameters, the same as SQLite FTS5's bm25().
+K1, B = 1.2, 0.75
 SCHEMA = """
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS rag_state(
@@ -66,9 +70,15 @@ CREATE TABLE IF NOT EXISTS rag_chunks(
     start integer NOT NULL, "end" integer NOT NULL,
     search_text text NOT NULL, context text NOT NULL DEFAULT '',
     tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', search_text)) STORED,
+    length integer NOT NULL DEFAULT 0,
     vector vector, PRIMARY KEY (tenant, id));
-CREATE INDEX IF NOT EXISTS rag_chunks_tsv ON rag_chunks USING gin(tsv);
 CREATE INDEX IF NOT EXISTS rag_chunks_section ON rag_chunks(section);
+-- BM25 postings: stemmed English lexemes from tsv with their counts.
+CREATE TABLE IF NOT EXISTS rag_terms(
+    tenant text NOT NULL, term text NOT NULL, chunk text NOT NULL, tf integer NOT NULL,
+    PRIMARY KEY (tenant, term, chunk),
+    FOREIGN KEY (tenant, chunk) REFERENCES rag_chunks(tenant, id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS rag_terms_chunk ON rag_terms(tenant, chunk);
 """
 TENANT = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}")
 
@@ -279,7 +289,30 @@ class PgIndex:
                             )
                         ],
                     )
-                state = {"pipeline": pipeline, "embedding": encoder}
+                chunk_ids = [r[0] for r in stage.execute("SELECT id FROM chunks")]
+                if chunk_ids:
+                    # Postings and lengths for BM25, from the stored tsvector.
+                    self.db.execute(
+                        "INSERT INTO rag_terms(tenant, term, chunk, tf) "
+                        "SELECT c.tenant, t.lexeme, c.id, "
+                        "coalesce(array_length(t.positions, 1), 1) "
+                        "FROM rag_chunks c, unnest(c.tsv) t WHERE c.id = ANY(%s)",
+                        (chunk_ids,),
+                    )
+                    self.db.execute(
+                        "UPDATE rag_chunks c SET length = coalesce((SELECT sum(tf) "
+                        "FROM rag_terms t WHERE t.chunk = c.id), 0) WHERE c.id = ANY(%s)",
+                        (chunk_ids,),
+                    )
+                totals = self.db.execute(
+                    "SELECT count(*) AS n, coalesce(avg(length), 0) AS mean FROM rag_chunks"
+                ).fetchone()
+                state = {
+                    "pipeline": pipeline,
+                    "embedding": encoder,
+                    "chunk_count": str(totals["n"]),
+                    "mean_length": str(float(totals["mean"])),
+                }
                 if dimension:
                     state["dimension"] = dimension
                 if plan:
@@ -314,6 +347,33 @@ class PgIndex:
             )
             args.extend([key, str(value)])
         return "".join(" AND " + p for p in parts), args
+
+    def _bm25(self, text, match, clause, args, candidates):
+        """(chunk id, BM25) best first, over stemmed English lexemes.
+
+        Postgres's ts_rank_cd scored SciFact NDCG@10 0.430 against FTS5 BM25's
+        0.682, so lexical ranking computes BM25 from the postings table:
+        idf = ln(1 + (N - n + 0.5) / (n + 0.5)), k1 = 1.2, b = 0.75.
+        """
+        count = float(self._state("chunk_count") or 0)
+        mean = float(self._state("mean_length") or 0) or 1.0
+        having = " HAVING count(*) = (SELECT count(*) FROM q)" if match == "all" else ""
+        rows = self.db.execute(
+            "WITH q AS (SELECT DISTINCT unnest(tsvector_to_array("
+            "to_tsvector('english', %s))) AS term), "
+            "df AS (SELECT t.term, count(*) AS n FROM rag_terms t JOIN q USING (term) "
+            "GROUP BY t.term) "
+            "SELECT t.chunk AS id, sum(ln(1 + (%s - df.n + 0.5) / (df.n + 0.5)) "
+            "* t.tf * %s / (t.tf + %s * (1 - %s + %s * c.length / %s))) AS score "
+            "FROM rag_terms t JOIN df USING (term) JOIN rag_chunks c ON c.id = t.chunk "
+            "JOIN rag_sections s ON s.id = c.section WHERE true"
+            + clause
+            + " GROUP BY t.chunk"
+            + having
+            + " ORDER BY score DESC, t.chunk LIMIT %s",
+            [text, count, K1 + 1, K1, B, B, mean, *args, candidates],
+        )
+        return [(r["id"], float(r["score"])) for r in rows]
 
     def _text(self, section, start, end):
         return self.db.execute(
@@ -393,18 +453,7 @@ class PgIndex:
                 )
             lexical, dense = [], []
             if mode != "dense":
-                tsquery = (" or " if match == "any" else " ").join(terms)
-                lexical = [
-                    (r["id"], r["score"])
-                    for r in self.db.execute(
-                        "SELECT c.id, ts_rank_cd(c.tsv, q) AS score FROM rag_chunks c "
-                        "JOIN rag_sections s ON s.id = c.section, "
-                        "websearch_to_tsquery('english', %s) q WHERE c.tsv @@ q"
-                        + clause
-                        + " ORDER BY score DESC, c.id LIMIT %s",
-                        [tsquery, *args, candidates],
-                    )
-                ]
+                lexical = self._bm25(" ".join(terms), match, clause, args, candidates)
             if query is not None:
                 d = len(query)
                 if self._state("dimension") != str(d):
