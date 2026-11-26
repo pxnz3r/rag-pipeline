@@ -30,6 +30,14 @@ Changing the embedder/configuration triggers a transactional full rebuild. To re
 
 Use SQLite's `Connection.backup()` for a live consistent backup. Copying only `index.sqlite` while WAL writers run is unsafe. Stop all readers/writers before filesystem copying or restoring an index. `rag-pipeline status` shows counts, generation and the embedding signature. Run `PRAGMA integrity_check` and FTS5's integrity-check command on an owner-controlled connection when diagnosing corruption; never replace a corrupt database with an empty index automatically.
 
+## Serving many users
+
+`rag-pipeline serve` holds models in memory and serves `/v1/status`, `/v1/search`, `/v1/ask` and admin-only `/v1/ingest`. Keys come from `RAG_API_KEYS` (`tenant:key[:admin],...`, keys of 16+ characters); put the server behind TLS (a reverse proxy) when it leaves the machine. Every request is appended to `audit.jsonl` under the server root with tenant, path, status and latency, never the query text.
+
+With `--postgres DSN`, tenants share one Postgres database (pgvector required). Run `python -c "from rag_pipeline.pg_store import install; install('postgresql://owner@db/rag')"` once as the tables' owner, then serve as a role without SUPERUSER or BYPASSRLS, which skip row security. Back up with `pg_dump`; restore into a database where `install` has run. The `<index>.enrich-cache` and `~/.cache/rag-pipeline/pg-<tenant>.enrich-cache` files only save LLM calls and can be deleted.
+
+`rag-pipeline doctor` shows the hardware, keys and settings a process sees and the stage each resolves to; compare it across machines when results differ.
+
 ## Automation
 
 Dependabot pip/Actions version PR limits remain zero. CI has only read permissions and cannot write branches. Automatic security updates are a separate GitHub setting: the integration previously returned HTTP 403, so it remains unverified. If those branches recur, the owner can change **Settings → Advanced Security → Dependabot → security updates**. Do not disable CI or advisories to stop version branches. Upgrade dependencies manually, audit resolved extras, run tests and merge only after `test-and-audit` passes.
