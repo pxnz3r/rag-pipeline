@@ -1,3 +1,32 @@
+# Validation — unreleased (0.8): FinanceBench, parsing, tiers
+
+Same machine as below (4 vCPU Sapphire Rapids, 15 GiB, no GPU). Outputs in [benchmarks/answers-0.8](../benchmarks/answers-0.8).
+
+## FinanceBench evidence pages
+
+All 150 open-source FinanceBench questions over their 84 source filings (`scripts/prepare_financebench.py`, `scripts/benchmark_financebench.py`), PDFium extraction, 57,357 chunks. A question counts when a returned window comes from a gold evidence page; k=10 windows.
+
+| Preset | Recall@10, all 84 filings | Recall@10, the question's filing | Median query |
+| --- | ---: | ---: | ---: |
+| `lexical` | 20.7% | 50.0% | 71 ms |
+| `fast` | 44.7% | 68.0% | 98 ms |
+| `hybrid` | 54.7% | 73.3% | 105 ms |
+| `rerank` | 64.7% | 74.7% | 3.2 s |
+
+Before the parser change, 41 of the 84 filings failed to ingest at all.
+
+## PDF extraction
+
+Over the 84 filings, measured with `extract_compare` (gold evidence numbers found on the gold page):
+
+| Engine | Failed filings | CPU seconds | Extracted text | Gold numbers found |
+| --- | ---: | ---: | ---: | ---: |
+| pypdf layout (before) | 41, as shipped | 752 | 114.4 M chars | 99.19% (after decrypting) |
+| pypdf plain | 0 after decrypting | 612 | 40.7 M chars | 99.61% |
+| PDFium (now) | 0 | 48 | 40.0 M chars | 99.88% |
+
+Docling (`--parser docling`) turned the 160-page 3M 2018 10-K into Markdown tables with rows and columns intact, at about 0.2 pages/s on this contended machine against about 100 pages/s for PDFium. A full FinanceBench comparison would take about 17 hours here, so its retrieval effect is not measured yet.
+
 # Validation — unreleased (0.7)
 
 Machine: 4 vCPU Intel Xeon (Sapphire Rapids, 2.1 GHz, AVX-512 VNNI), 15 GiB RAM, no GPU; Python 3.13, ONNX Runtime 1.29.0, NumPy 2.5.3. Every number below comes from `scripts/benchmark_beir.py` or `rag-pipeline evaluate`; raw outputs are in [benchmarks/beir-0.7](../benchmarks/beir-0.7) and [benchmarks/domain-0.7](../benchmarks/domain-0.7).
