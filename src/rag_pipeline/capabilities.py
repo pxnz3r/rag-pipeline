@@ -29,6 +29,18 @@ ONNX_PREFERENCE = (
     "CPUExecutionProvider",
 )
 ACCELERATED = set(ONNX_PREFERENCE) - {"CPUExecutionProvider"}
+# Non-secret settings that enable components: self-hosted server URLs and the
+# model names a hosted chat route should call.
+SETTINGS = (
+    "RAG_LLAMA_SERVER",
+    "RAG_LLAMA_MODEL",
+    "RAG_LLAMA_EMBED_SERVER",
+    "RAG_LLAMA_EMBED_MODEL",
+    "RAG_LLAMA_RERANK_SERVER",
+    "RAG_LLAMA_RERANK_MODEL",
+    "RAG_OPENAI_MODEL",
+    "RAG_GEMINI_MODEL",
+)
 
 
 @dataclass(frozen=True)
@@ -37,9 +49,12 @@ class Capabilities:
     memory_bytes: int
     onnx_providers: tuple[str, ...] = ()
     services: tuple[str, ...] = ()
-    llama_server: str | None = None
+    settings: tuple[tuple[str, str], ...] = ()
     network: bool = False
     extras: tuple[str, ...] = field(default=())
+
+    def setting(self, name):
+        return dict(self.settings).get(name)
 
     @property
     def accelerator(self):
@@ -105,6 +120,7 @@ def probe(*, network: bool | None = None, environ=os.environ) -> Capabilities:
         name
         for name, module in (
             ("models", "onnxruntime"),
+            ("anthropic", "anthropic"),
             ("docling", "docling"),
             ("usearch", "usearch"),
         )
@@ -115,7 +131,7 @@ def probe(*, network: bool | None = None, environ=os.environ) -> Capabilities:
         memory_bytes=_memory(),
         onnx_providers=providers,
         services=services,
-        llama_server=environ.get("RAG_LLAMA_SERVER") or None,
+        settings=tuple((n, environ[n]) for n in SETTINGS if environ.get(n)),
         network=network,
         extras=extras,
     )

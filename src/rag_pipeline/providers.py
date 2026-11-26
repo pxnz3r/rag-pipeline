@@ -82,6 +82,24 @@ def _signature(model, revision, **settings):
     return json.dumps(dict(model=model, revision=revision, **settings), sort_keys=True)
 
 
+def _options(value, reserved):
+    """Finite, JSON-serializable request fields that can't overwrite the core."""
+    options = {} if value is None else value
+    if (
+        not isinstance(options, dict)
+        or any(not isinstance(key, str) for key in options)
+        or set(options) & reserved
+    ):
+        raise ValueError("Invalid or reserved request options")
+    try:
+        encoded = json.dumps(options, allow_nan=False, sort_keys=True)
+    except (TypeError, ValueError):
+        raise ValueError("Request options require finite JSON") from None
+    if len(encoded) > 16000:
+        raise ValueError("Request options exceed 16KB")
+    return json.loads(encoded)
+
+
 def _template(value):
     if not isinstance(value, str) or len(value) > 4000:
         raise ValueError("Invalid embedding template")
@@ -105,15 +123,25 @@ class EmbeddingServer(_Server):
         passage_template="{text}",
         instruction=None,
         batch_size=8,
+        query_options=None,
+        passage_options=None,
         **kwargs,
     ):
+        """OpenAI-shaped ``/embeddings``; ``*_options`` add vendor request fields.
+
+        Voyage, for example, takes ``{"input_type": "query"}`` for queries and
+        ``{"input_type": "document"}`` for passages. The options enter the
+        signature, because they change the vectors.
+        """
         super().__init__(endpoint, model=model, **kwargs)
         if (
             not isinstance(batch_size, int)
             or isinstance(batch_size, bool)
-            or not 1 <= batch_size <= 64
+            or not 1 <= batch_size <= 128
         ):
             raise ValueError("Invalid embedding batch size")
+        self.query_options = _options(query_options, {"input", "model"})
+        self.passage_options = _options(passage_options, {"input", "model"})
         if instruction is not None:
             if (
                 not isinstance(instruction, str)
@@ -139,15 +167,21 @@ class EmbeddingServer(_Server):
             query_template=query_template,
             passage_template=passage_template,
             protocol="openai-embeddings:templates:v2",
+            **({"query_options": self.query_options} if self.query_options else {}),
+            **(
+                {"passage_options": self.passage_options}
+                if self.passage_options
+                else {}
+            ),
         )
 
     def encode_queries(self, texts):
-        return self._encode(texts, self.query_template)
+        return self._encode(texts, self.query_template, self.query_options)
 
     def encode(self, texts):
-        return self._encode(texts, self.passage_template)
+        return self._encode(texts, self.passage_template, self.passage_options)
 
-    def _encode(self, texts, template):
+    def _encode(self, texts, template, options):
         if any(not isinstance(t, str) for t in texts):
             raise ValueError("Embedding inputs must be strings")
         vectors = []
@@ -157,9 +191,9 @@ class EmbeddingServer(_Server):
                 for t in texts[offset : offset + self.batch_size]
             ]
             try:
-                data = self._request("/embeddings", dict(input=batch), "Embedding")[
-                    "data"
-                ]
+                data = self._request(
+                    "/embeddings", dict(input=batch, **options), "Embedding"
+                )["data"]
                 if not isinstance(data, list) or len(data) != len(batch):
                     raise ValueError("Invalid embedding batch")
                 ordered = [None] * len(batch)
@@ -195,8 +229,13 @@ class EmbeddingServer(_Server):
 class RerankingServer(_Server):
     """Indexed relevance_score protocol used by compatible /rerank servers."""
 
-    def __init__(self, endpoint, *, model, revision, **kwargs):
+    def __init__(self, endpoint, *, model, revision, route="/rerank", **kwargs):
+        """``route`` differs by vendor: Cohere ``/v2/rerank``, ZeroEntropy
+        ``/models/rerank``; llama.cpp and Jina-style servers use ``/rerank``."""
         super().__init__(endpoint, model=model, **kwargs)
+        if not isinstance(route, str) or not route.startswith("/") or "?" in route:
+            raise ValueError("Invalid reranking route")
+        self.route = route
         self.signature = _signature(model, revision, protocol="indexed-rerank:v1")
 
     def score(self, question, texts):
@@ -206,7 +245,7 @@ class RerankingServer(_Server):
             return []
         try:
             results = self._request(
-                "/rerank",
+                self.route,
                 dict(query=question, documents=list(texts), top_n=len(texts)),
                 "Reranking",
             )["results"]

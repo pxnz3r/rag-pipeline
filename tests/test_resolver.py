@@ -6,7 +6,7 @@ import pytest
 
 from rag_pipeline import components
 from rag_pipeline.capabilities import Capabilities, probe
-from rag_pipeline.components import Component, _needs_service, auto_profile, resolve
+from rag_pipeline.components import Component, auto_profile, resolve
 from rag_pipeline.configuration import load_config
 
 GIB = 1024**3
@@ -30,7 +30,9 @@ def test_chain_takes_first_runnable_and_reports_skips():
     assert plan.chosen["encoder"].name == "arctic-m"
     assert plan.chosen["reranker"].name == "none"
     skipped = plan.summary()["stages"]["encoder"]["skipped"]
-    assert "voyage" in skipped and "not installed" in skipped["voyage"]
+    assert skipped["voyage"] == "network disabled (RAG_ALLOW_NETWORK=0)"
+    with pytest.raises(ValueError, match="missing is not installed"):
+        resolve("workstation", LAPTOP, pin={"reranker": "missing"})
     # Without the models extra the floor is BM25, and the plan says why.
     bare = resolve("laptop", Capabilities(cpus=2, memory_bytes=2 * GIB))
     assert bare.chosen["encoder"].name == "none"
@@ -55,14 +57,7 @@ def test_accelerator_reaches_onnx_providers_and_config_is_valid(tmp_path):
     assert load_config(path) == settings
 
 
-def test_hosted_components_need_key_and_network(monkeypatch):
-    hosted = Component(
-        "voyage",
-        "encoder",
-        {"kind": "openai", "options": {}},
-        _needs_service("voyage"),
-    )
-    monkeypatch.setattr(components, "BUILTIN", [hosted, *components.BUILTIN])
+def test_hosted_components_need_key_and_network():
     keyed = Capabilities(
         cpus=4,
         memory_bytes=8 * GIB,

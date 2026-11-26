@@ -76,32 +76,206 @@ def _memory(gib):
     return lambda caps: None if caps.memory_gib >= gib else f"needs {gib} GiB RAM"
 
 
-BUILTIN = [
+def _setting(*names):
+    def check(caps):
+        missing = [n for n in names if not caps.setting(n)]
+        return f"set {', '.join(missing)}" if missing else None
+
+    return check
+
+
+def _extra(name):
+    return lambda caps: (
+        None if name in caps.extras else f"pip install 'rag-pipeline[{name}]'"
+    )
+
+
+def _server(kind_options):
+    """Spec for an OpenAI-shaped server whose URL or model comes from settings."""
+
+    def spec(caps):
+        options = {
+            key: caps.setting(value[1:]) if str(value).startswith("$") else value
+            for key, value in kind_options.items()
+        }
+        return {"kind": "openai", "options": options}
+
+    return spec
+
+
+HOSTED = [
     Component(
-        "arctic-m",
+        "voyage",
         "encoder",
-        _onnx("ArcticM"),
-        _all(_needs_models, _memory(4)),
-        "arctic-embed-m-v1.5 int8, 768d; best measured local CPU encoder",
+        {
+            "kind": "openai",
+            "options": {
+                "endpoint": "https://api.voyageai.com/v1",
+                "model": "voyage-4-large",
+                "revision": "voyage-4-large",
+                "api_key_env": "VOYAGE_API_KEY",
+                "batch_size": 128,
+                "query_options": {"input_type": "query", "output_dimension": 1024},
+                "passage_options": {"input_type": "document", "output_dimension": 1024},
+            },
+        },
+        _needs_service("voyage"),
+        "Voyage 4 Large, 1024d (hosted; sends text to Voyage)",
     ),
     Component(
-        "bge-small",
+        "gemini-embedding",
         "encoder",
-        _onnx("BGESmall"),
-        _needs_models,
-        "bge-small-en-v1.5 int8, 384d; 3x faster indexing, weaker on legal clauses",
+        {
+            "kind": "python",
+            "factory": "rag_pipeline.hosted:GeminiEmbedding",
+            "options": {"dimensions": 768},
+        },
+        _needs_service("gemini"),
+        "Gemini Embedding, 768d (hosted; sends text to Google)",
     ),
-    Component("none", "encoder", None, note="BM25 only"),
     Component(
-        "gte-reranker",
+        "zeroentropy",
         "reranker",
-        _onnx("GTEReranker"),
-        _all(_needs_models, _memory(4)),
-        "gte-reranker-modernbert-base fp32; about 3 s per query on 4 CPU cores",
+        {
+            "kind": "openai",
+            "options": {
+                "endpoint": "https://api.zeroentropy.dev/v1",
+                "route": "/models/rerank",
+                "model": "zerank-2",
+                "revision": "zerank-2",
+                "api_key_env": "ZEROENTROPY_API_KEY",
+            },
+        },
+        _needs_service("zeroentropy"),
+        "zerank-2 (hosted; sends text to ZeroEntropy)",
     ),
-    Component("none", "reranker", None, note="fused order"),
-    Component("none", "chat", None, note="extractive evidence, no generation"),
+    Component(
+        "cohere-rerank",
+        "reranker",
+        {
+            "kind": "openai",
+            "options": {
+                "endpoint": "https://api.cohere.com",
+                "route": "/v2/rerank",
+                "model": "rerank-v4.0-pro",
+                "revision": "rerank-v4.0-pro",
+                "api_key_env": "COHERE_API_KEY",
+            },
+        },
+        _needs_service("cohere"),
+        "Cohere Rerank 4 Pro (hosted; sends text to Cohere)",
+    ),
+    Component(
+        "anthropic",
+        "chat",
+        {"kind": "python", "factory": "rag_pipeline.hosted:AnthropicChat"},
+        _all(_needs_service("anthropic"), _extra("anthropic")),
+        "Claude Opus 5.5 (hosted; sends evidence to Anthropic)",
+    ),
+    Component(
+        "openai",
+        "chat",
+        _server(
+            {
+                "endpoint": "https://api.openai.com/v1",
+                "model": "$RAG_OPENAI_MODEL",
+                "api_key_env": "OPENAI_API_KEY",
+                "token_limit_parameter": "max_completion_tokens",
+            }
+        ),
+        _all(_needs_service("openai"), _setting("RAG_OPENAI_MODEL")),
+        "OpenAI chat model named by RAG_OPENAI_MODEL (hosted)",
+    ),
+    Component(
+        "gemini",
+        "chat",
+        _server(
+            {
+                "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "model": "$RAG_GEMINI_MODEL",
+                "api_key_env": "GEMINI_API_KEY",
+            }
+        ),
+        _all(_needs_service("gemini"), _setting("RAG_GEMINI_MODEL")),
+        "Gemini chat model named by RAG_GEMINI_MODEL (hosted)",
+    ),
 ]
+# llama.cpp's llama-server (CUDA, Metal, Vulkan, HIP, SYCL or CPU) serves one
+# model per process; each stage points at its own server.
+LLAMA = [
+    Component(
+        "qwen3-embedding",
+        "encoder",
+        _server(
+            {
+                "endpoint": "$RAG_LLAMA_EMBED_SERVER",
+                "model": "$RAG_LLAMA_EMBED_MODEL",
+                "revision": "$RAG_LLAMA_EMBED_MODEL",
+                "instruction": "Given a question, retrieve passages that answer it",
+                "batch_size": 32,
+            }
+        ),
+        _setting("RAG_LLAMA_EMBED_SERVER", "RAG_LLAMA_EMBED_MODEL"),
+        "Qwen3-Embedding (or any GGUF encoder) on llama-server",
+    ),
+    Component(
+        "qwen3-reranker",
+        "reranker",
+        _server(
+            {
+                "endpoint": "$RAG_LLAMA_RERANK_SERVER",
+                "model": "$RAG_LLAMA_RERANK_MODEL",
+                "revision": "$RAG_LLAMA_RERANK_MODEL",
+            }
+        ),
+        _setting("RAG_LLAMA_RERANK_SERVER", "RAG_LLAMA_RERANK_MODEL"),
+        "Qwen3-Reranker (or any GGUF reranker) on llama-server",
+    ),
+    Component(
+        "llama-server",
+        "chat",
+        _server(
+            {
+                "endpoint": "$RAG_LLAMA_SERVER",
+                "model": "$RAG_LLAMA_MODEL",
+                "max_tokens": 4000,
+            }
+        ),
+        _setting("RAG_LLAMA_SERVER", "RAG_LLAMA_MODEL"),
+        "Local chat model on llama-server (Qwen3.5 4B or 9B recommended)",
+    ),
+]
+
+BUILTIN = (
+    HOSTED
+    + LLAMA
+    + [
+        Component(
+            "arctic-m",
+            "encoder",
+            _onnx("ArcticM"),
+            _all(_needs_models, _memory(4)),
+            "arctic-embed-m-v1.5 int8, 768d; best measured local CPU encoder",
+        ),
+        Component(
+            "bge-small",
+            "encoder",
+            _onnx("BGESmall"),
+            _needs_models,
+            "bge-small-en-v1.5 int8, 384d; 3x faster indexing, weaker on legal clauses",
+        ),
+        Component("none", "encoder", None, note="BM25 only"),
+        Component(
+            "gte-reranker",
+            "reranker",
+            _onnx("GTEReranker"),
+            _all(_needs_models, _memory(4)),
+            "gte-reranker-modernbert-base fp32; about 3 s per query on 4 CPU cores",
+        ),
+        Component("none", "reranker", None, note="fused order"),
+        Component("none", "chat", None, note="extractive evidence, no generation"),
+    ]
+)
 
 # Best first. Hosted and GPU components join these chains as they register;
 # a name with no registered component is skipped and reported.
