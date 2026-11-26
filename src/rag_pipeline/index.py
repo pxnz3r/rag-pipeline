@@ -741,47 +741,24 @@ class Index:
         """
         if rerank_candidates is None:
             rerank_candidates = candidates
-        if (
-            not isinstance(question, str)
-            or len(question) > 4000
-            or any(
-                not isinstance(v, int) or isinstance(v, bool)
-                for v in (k, candidates, context_chars)
-            )
-            or not 1 <= k <= candidates <= 1000
-            or mode not in {"lexical", "dense", "hybrid"}
-            or match not in {"all", "any"}
-            or not 100 <= context_chars <= 20000
-            or not math.isfinite(min_cosine)
-            or not -1 <= min_cosine <= 1
-            or not isinstance(diversify, bool)
-            or not isinstance(distinct_documents, bool)
-            or fusion not in {"rrf", "relative"}
-            or not isinstance(dense_weight, (int, float))
-            or isinstance(dense_weight, bool)
-            or not 0 <= dense_weight <= 1
-            or not isinstance(rerank_candidates, int)
-            or isinstance(rerank_candidates, bool)
-            or not 1 <= rerank_candidates <= candidates
-        ):
-            raise ValueError("Invalid search parameters")
+        check_search(
+            question,
+            k=k,
+            candidates=candidates,
+            mode=mode,
+            min_cosine=min_cosine,
+            match=match,
+            context_chars=context_chars,
+            diversify=diversify,
+            distinct_documents=distinct_documents,
+            fusion=fusion,
+            dense_weight=dense_weight,
+            rerank_candidates=rerank_candidates,
+            as_of=as_of,
+        )
         if mode in {"dense", "hybrid"} and not self.embedder:
             raise ValueError("Dense/hybrid search requires an embedder")
-        terms = list(
-            dict.fromkeys(
-                t
-                for t in re.findall(r"[\w+#]+", question.lower())
-                if any(c.isalnum() for c in t) and t not in STOP
-            )
-        )[:64]
-        if not terms:
-            terms = list(
-                dict.fromkeys(
-                    t
-                    for t in re.findall(r"[\w+#]+", question.lower())
-                    if any(c.isalnum() for c in t)
-                )
-            )[:64]
+        terms = query_terms(question)
         if not terms:
             return []
         clause, args = self._filters(filters)
@@ -789,8 +766,6 @@ class Index:
             # Point-in-time retrieval: only documents whose "published"
             # metadata is on or before as_of. An undated document can't be
             # shown to predate as_of, so it is excluded (no look-ahead).
-            if not isinstance(as_of, str) or not _ISO_DATE.fullmatch(as_of):
-                raise ValueError("as_of must be an ISO date or datetime")
             # A date-only value counts as the end of that day, so a filing
             # dated the same day as an intraday as_of stays excluded.
             clause += (
@@ -835,20 +810,7 @@ class Index:
                 if self._state("dimension") != str(len(query)):
                     raise ValueError("Embedding dimensions changed; create a new index")
                 dense = self._dense_ranking(query, clause, args, candidates, min_cosine)
-            scores = {}
-            for ranking, weight in ((lexical, 1 - dense_weight), (dense, dense_weight)):
-                if not ranking or not weight:
-                    continue
-                if fusion == "rrf":
-                    # Weight 0.5 per channel keeps the classic 1/(60+rank) sum.
-                    for rank, (cid, _) in enumerate(ranking, 1):
-                        scores[cid] = scores.get(cid, 0) + 2 * weight / (60 + rank)
-                else:
-                    low, high = ranking[-1][1], ranking[0][1]
-                    for cid, value in ranking:
-                        relative = (value - low) / (high - low) if high > low else 1
-                        scores[cid] = scores.get(cid, 0) + weight * relative
-            order = sorted(scores, key=lambda c: (-scores[c], c))[:candidates]
+            order, scores = fuse(lexical, dense, fusion, dense_weight, candidates)
             rows = {}
             for offset in range(0, len(order), 256):
                 ids = order[offset : offset + 256]
@@ -883,48 +845,147 @@ class Index:
                 floor = min(scores.values()) - 1
                 scores.update({cid: floor for cid in tail})
                 order = head + tail
-            selected, hits, documents = [], [], set()
-            for cid in order:
-                row = rows[cid]
-                if distinct_documents and row["document"] in documents:
-                    continue
-                chunk_end = min(row["end"], row["start"] + context_chars)
-                extra = max(0, context_chars - (chunk_end - row["start"])) // 2
-                start, end = (
-                    max(0, row["start"] - extra),
-                    min(row["chars"], chunk_end + extra),
-                )
-                # Suppress duplicate evidence windows, not merely seed chunks.
-                if diversify and any(
-                    section == row["section"]
-                    and min(previous_end, end) - max(previous_start, start)
-                    > 0.5 * min(previous_end - previous_start, end - start)
-                    for section, previous_start, previous_end in selected
-                ):
-                    continue
-                selected.append((row["section"], start, end))
-                documents.add(row["document"])
-                guarded_start, guarded_end = (
-                    max(0, start - 100),
-                    min(row["chars"], end + 100),
-                )
-                guarded = self._text(row["section"], guarded_start, guarded_end)
-                hits.append(
-                    Hit(
-                        cid,
-                        row["document"],
-                        row["locator"],
-                        start,
-                        end,
-                        guarded[start - guarded_start : end - guarded_start],
-                        json.loads(row["metadata"]),
-                        scores[cid],
-                        row["context"],
-                        row["fingerprint"],
-                        guarded[: start - guarded_start],
-                        guarded[end - guarded_start :],
-                    )
-                )
-                if len(hits) == k:
-                    break
-            return hits
+            return windows(
+                order,
+                rows,
+                scores,
+                self._text,
+                k=k,
+                context_chars=context_chars,
+                diversify=diversify,
+                distinct_documents=distinct_documents,
+            )
+
+
+def check_search(
+    question,
+    *,
+    k,
+    candidates,
+    mode,
+    min_cosine,
+    match,
+    context_chars,
+    diversify,
+    distinct_documents,
+    fusion,
+    dense_weight,
+    rerank_candidates,
+    as_of,
+):
+    """Reject invalid search options before any store work (shared by stores)."""
+    if (
+        not isinstance(question, str)
+        or len(question) > 4000
+        or any(
+            not isinstance(v, int) or isinstance(v, bool)
+            for v in (k, candidates, context_chars)
+        )
+        or not 1 <= k <= candidates <= 1000
+        or mode not in {"lexical", "dense", "hybrid"}
+        or match not in {"all", "any"}
+        or not 100 <= context_chars <= 20000
+        or not math.isfinite(min_cosine)
+        or not -1 <= min_cosine <= 1
+        or not isinstance(diversify, bool)
+        or not isinstance(distinct_documents, bool)
+        or fusion not in {"rrf", "relative"}
+        or not isinstance(dense_weight, (int, float))
+        or isinstance(dense_weight, bool)
+        or not 0 <= dense_weight <= 1
+        or not isinstance(rerank_candidates, int)
+        or isinstance(rerank_candidates, bool)
+        or not 1 <= rerank_candidates <= candidates
+    ):
+        raise ValueError("Invalid search parameters")
+    if as_of is not None and (
+        not isinstance(as_of, str) or not _ISO_DATE.fullmatch(as_of)
+    ):
+        raise ValueError("as_of must be an ISO date or datetime")
+
+
+def query_terms(question):
+    """Distinct lowercase query terms (+, # and _ kept), stop words dropped
+    unless the question is only stop words; at most 64."""
+    tokens = [
+        t
+        for t in re.findall(r"[\w+#]+", question.lower())
+        if any(c.isalnum() for c in t)
+    ]
+    terms = list(dict.fromkeys(t for t in tokens if t not in STOP))[:64]
+    return terms or list(dict.fromkeys(tokens))[:64]
+
+
+def fuse(lexical, dense, fusion, dense_weight, candidates):
+    """Fused chunk order and scores from (id, score) rankings, best first.
+
+    RRF sums 2*w/(60+rank) per channel (w=0.5 is the classic unweighted sum);
+    "relative" sums min-max normalized scores. Ties break on chunk id.
+    """
+    scores = {}
+    for ranking, weight in ((lexical, 1 - dense_weight), (dense, dense_weight)):
+        if not ranking or not weight:
+            continue
+        if fusion == "rrf":
+            for rank, (cid, _) in enumerate(ranking, 1):
+                scores[cid] = scores.get(cid, 0) + 2 * weight / (60 + rank)
+        else:
+            low, high = ranking[-1][1], ranking[0][1]
+            for cid, value in ranking:
+                relative = (value - low) / (high - low) if high > low else 1
+                scores[cid] = scores.get(cid, 0) + weight * relative
+    return sorted(scores, key=lambda c: (-scores[c], c))[:candidates], scores
+
+
+def windows(
+    order, rows, scores, text, *, k, context_chars, diversify, distinct_documents
+):
+    """Evidence windows of original text around ranked chunks.
+
+    ``rows`` maps chunk id to its section, offsets, context, document,
+    locator, section length, metadata JSON and fingerprint; ``text(section,
+    start, end)`` reads original text. Overlapping windows in one section are
+    suppressed, not just repeated seed chunks.
+    """
+    selected, hits, documents = [], [], set()
+    for cid in order:
+        row = rows[cid]
+        if distinct_documents and row["document"] in documents:
+            continue
+        chunk_end = min(row["end"], row["start"] + context_chars)
+        extra = max(0, context_chars - (chunk_end - row["start"])) // 2
+        start, end = (
+            max(0, row["start"] - extra),
+            min(row["chars"], chunk_end + extra),
+        )
+        if diversify and any(
+            section == row["section"]
+            and min(previous_end, end) - max(previous_start, start)
+            > 0.5 * min(previous_end - previous_start, end - start)
+            for section, previous_start, previous_end in selected
+        ):
+            continue
+        selected.append((row["section"], start, end))
+        documents.add(row["document"])
+        guarded_start, guarded_end = max(0, start - 100), min(row["chars"], end + 100)
+        guarded = text(row["section"], guarded_start, guarded_end)
+        metadata = row["metadata"]
+        hits.append(
+            Hit(
+                cid,
+                row["document"],
+                row["locator"],
+                start,
+                end,
+                guarded[start - guarded_start : end - guarded_start],
+                json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
+                scores[cid],
+                row["context"],
+                row["fingerprint"],
+                guarded[: start - guarded_start],
+                guarded[end - guarded_start :],
+            )
+        )
+        if len(hits) == k:
+            break
+    return hits
