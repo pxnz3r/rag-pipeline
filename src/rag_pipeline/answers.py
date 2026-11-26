@@ -272,8 +272,11 @@ def _answer_evidence(
             claims = _validate_claims(_first_json_object(raw), hits, question)
         except _Rejected as rejected:
             error = rejected
-            request["previous_attempt_rejected"] = (
-                f"{rejected}. Every number and unit in a claim must appear in that "
+            request["previous_attempt_rejected"] = f"{rejected}. " + (
+                "Copy each source_id exactly as given in the evidence, and each "
+                "quote character for character from that source's text."
+                if str(rejected).startswith("Unverifiable citation")
+                else "Every number and unit in a claim must appear in that "
                 "claim's verbatim quotes; quote the table header or line that "
                 "states the unit or scale as an extra evidence item; state only "
                 "numbers written in the evidence."
@@ -332,13 +335,19 @@ def _validate_claims(result, hits, question=""):
                 raise _Rejected("Invalid citation")
             source = sources.get(cite["source_id"])
             quote = cite["quote"]
+            if not source:
+                raise _Rejected(
+                    f"Unverifiable citation: unknown source_id {str(cite['source_id'])[:120]!r}"
+                )
             if (
-                not source
-                or not isinstance(quote, str)
+                not isinstance(quote, str)
                 or not quote.strip()
                 or not _grounded_quote(source, quote)
             ):
-                raise _Rejected("Unverifiable citation")
+                raise _Rejected(
+                    f"Unverifiable citation: quote not found in {source.id!r}: "
+                    f"{str(quote)[:80]!r}"
+                )
             quotes.append(quote)
         quoted = " ".join(quotes)
         described = " ".join(

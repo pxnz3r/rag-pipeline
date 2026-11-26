@@ -88,6 +88,26 @@ def test_quotes_match_across_pdf_line_breaks_but_not_inside_numbers():
     assert not _quote_spans(hit, "plant and equipment (PP&E) (1,578)")
 
 
+def test_citation_rejection_names_the_failing_part():
+    def claims(source_id, quote):
+        evidence = [{"source_id": source_id, "quote": quote}]
+        return json.dumps({"claims": [{"text": "Loss.", "evidence": evidence}]})
+
+    requests = []
+
+    def generate(system, payload):
+        requests.append(json.loads(payload))
+        return claims("doc.pdf#page 9:0-10", "Loss")
+
+    unknown = answer(Retriever(), "Loss?", generate=generate)
+    assert unknown.detail.startswith("Unverifiable citation: unknown source_id")
+    assert "Copy each source_id exactly" in requests[1]["previous_attempt_rejected"]
+    invented = answer(
+        Retriever(), "Loss?", generate=lambda *_: claims(HIT.id, "Profit soared")
+    )
+    assert invented.detail.startswith("Unverifiable citation: quote not found in")
+
+
 def test_accounting_parentheses_and_one_repair_turn():
     quote = "Loss USD millions: (12.50)."
     good = {
