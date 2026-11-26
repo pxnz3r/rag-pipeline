@@ -30,7 +30,7 @@ Most RAG stacks split state across a vector DB, a document store and a cache, th
 | **Transactional ingest** | Text, metadata, FTS5 and vectors update together. A failed ingest rolls back everything; a missing source directory never silently deletes the corpus. |
 | **Exact evidence** | Hits carry original text, page locators and character offsets. Optional generation must return verifiable quotes. |
 | **Metadata filters** | Sidecar `*.meta.json` fields (company, year, jurisdiction, ...) filter *before* lexical and dense scoring. |
-| **Hybrid search** | BM25 lexical by default; opt-in local ONNX dense vectors, RRF fusion, cross-encoder or ColBERT reranking. |
+| **Hybrid search** | BM25 lexical by default; `--preset hybrid` adds local int8 ONNX vectors with relative-score fusion; `--preset rerank` adds a cross-encoder. RRF, ColBERT and custom adapters stay available. |
 | **Heading context** | `--contextual` carries Markdown heading hierarchies into indexing and enables document navigation. |
 | **Grounded numbers** | `reason` runs source-bound quantitative programs with execution traces. |
 | **No hidden models** | No model or vendor is selected by default. No PyTorch, pickle caches or remote model code. |
@@ -63,10 +63,27 @@ with Index("processed_data/index.sqlite") as index:
 
 ## Semantic search and reranking
 
-Optional, local, and explicit. Install the `models` extra and name the adapter you want:
+Optional, local, and explicit. Install the `models` extra and name a preset:
 
 ```bash
 pip install -e '.[models]'
+rag-pipeline --preset hybrid ingest data
+rag-pipeline --preset hybrid search "Which obligations survive termination?"
+rag-pipeline --preset rerank search "How much did sales increase?"   # slower, more precise
+```
+
+| Preset | What runs | Use it for |
+| --- | --- | --- |
+| `lexical` | BM25 | exact terms, account numbers, no downloads |
+| `fast` | bge-small int8 + BM25 | large corpora on a laptop; weaker on legal clauses |
+| `hybrid` | arctic-embed-m int8 + BM25, relative-score fusion | the default choice: best on every benchmark we run |
+| `rerank` | `hybrid` + gte-reranker over the top 20 | precision over speed (seconds per query on CPU) |
+
+Against the previous MiniLM hybrid route, `hybrid` raises BEIR NDCG@10 on SciFact (0.718 → 0.744), NFCorpus (0.350 → 0.366) and FiQA (0.359 → 0.395), FinQA row recall@5 (72.3% → 76.1%) and CUAD clause character recall (63.6% → 63.7%). Details in [testing](docs/TESTING.md).
+
+Or name individual adapters:
+
+```bash
 
 # Dense + hybrid search with MiniLM
 rag-pipeline --dense --embedding rag_pipeline.embeddings:MiniLM ingest data

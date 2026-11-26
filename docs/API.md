@@ -3,8 +3,19 @@
 Everything below is importable from `rag_pipeline` and loaded lazily. Validation is strict: invalid arguments raise `ValueError` rather than being coerced.
 
 ```python
-from rag_pipeline import Index, answer, calculate, Operand, Navigation, reason
+from rag_pipeline import Index, answer, calculate, Operand, Navigation, reason, preset
 ```
+
+## `preset`
+
+```python
+stack = preset("hybrid")  # "lexical", "fast", "hybrid" or "rerank"
+with Index("processed_data/index.sqlite", stack.embedder, stack.reranker) as index:
+    index.ingest("data")
+    hits = index.search("What was 2024 revenue?", **stack.search)
+```
+
+Returns a `Stack(embedder, reranker, search)`: the preset's providers, instantiated (pinned weights download on first use), and its search options. `rag_pipeline.presets.config(name)` returns the same preset as a configuration dict without loading models.
 
 ## `Index`
 
@@ -17,7 +28,7 @@ A SQLite-backed corpus. Use it as a context manager, or call `close()`.
 | Method | Returns | Notes |
 |---|---|---|
 | `ingest(root, *, size=900, overlap=100, contextual=False)` | `{"changed", "removed", "documents", "sections", "chunks", "generation", "embedding"}` | Synchronizes the **complete** directory in one transaction. Missing `root` fails; an empty one removes the corpus. `contextual=True` adds Markdown heading context for `.md`/`.txt`. |
-| `search(question, *, filters=None, k=5, candidates=40, mode="lexical", min_cosine=0.3, match="any", context_chars=1800, diversify=True, distinct_documents=False)` | `list[Hit]` | `mode` is `"lexical"`, `"dense"` or `"hybrid"` (dense modes need an `embedder`). `filters` are exact metadata matches, ANDed. `match="all"` requires every non-stopword term. |
+| `search(question, *, filters=None, k=5, candidates=40, mode="lexical", min_cosine=0.3, match="any", context_chars=1800, diversify=True, distinct_documents=False, fusion="rrf", dense_weight=0.5, rerank_candidates=None)` | `list[Hit]` | `mode` is `"lexical"`, `"dense"` or `"hybrid"` (dense modes need an `embedder`). `filters` are exact metadata matches, ANDed. `match="all"` requires every non-stopword term. `fusion="rrf"` sums weighted reciprocal ranks (0.5 keeps the classic 1/(60+rank) sum); `"relative"` sums min-max normalized BM25 and cosine scores, weighted by `dense_weight`. A weight of 0 or 1 turns a channel off. A reranker rescores the top `rerank_candidates` fused chunks (default: all `candidates`); the rest keep their fused order below them. |
 | `status()` | `dict` | Document/section/chunk counts, publication generation, embedding signature. |
 | `prepare_reranker_cache()` | | Stages ColBERT passage tokens for the configured reranker. |
 | `close()` | | Closes the database. |

@@ -1,6 +1,15 @@
-# Explicit pipeline configuration — 0.5
+# Explicit pipeline configuration
 
-The pipeline does not choose an embedding, reranking or generation model. Core search defaults to lexical. Dense/hybrid search requires an explicit embedding provider; missing providers fail instead of silently changing the requested route. Configured roles load only for commands that need them; status and lexical queries do not load an encoder. Generation requires both a configured provider and `ask --generate`.
+The pipeline does not choose an embedding, reranking or generation model unless you name one. `--preset lexical|fast|hybrid|rerank` (or `rag_pipeline.preset(name)`) is the one-word way to name a measured stack; each preset is an ordinary configuration in `rag_pipeline/presets.py`, and a `--config` file's sections replace the preset's sections of the same name. Core search defaults to lexical.
+
+| Preset | Encoder | Reranker | Search |
+| --- | --- | --- | --- |
+| `lexical` | none | none | BM25 |
+| `fast` | `BGESmall` (bge-small-en-v1.5 int8, 384d) | none | hybrid, `fusion: relative`, `dense_weight: 0.6` |
+| `hybrid` | `ArcticM` (snowflake-arctic-embed-m-v1.5 int8, 768d) | none | same |
+| `rerank` | `ArcticM` | `GTEReranker` (gte-reranker-modernbert-base fp32) | same, `rerank_candidates: 20` |
+
+Search options in a configuration: `k`, `candidates`, `min_cosine`, `context_chars`, `diversify`, `distinct_documents`, `mode`, `match`, `fusion` (`rrf` or `relative`), `dense_weight` (0 to 1) and `rerank_candidates`. Dense/hybrid search requires an explicit embedding provider; missing providers fail instead of silently changing the requested route. Configured roles load only for commands that need them; status and lexical queries do not load an encoder. Generation requires both a configured provider and `ask --generate`.
 
 `rag-pipeline --config pipeline.json --index index.sqlite ingest data` builds an index using its configured encoder. Use the same configuration for search/ask. JSON configuration rejects unknown sections/options, duplicate keys and nonfinite numbers. A CLI search flag overrides its configuration setting. Provider constructor options are validated by that adapter rather than silently discarded.
 
@@ -79,7 +88,7 @@ This adapter handles standard token inputs and configured graph outputs. Special
 
 Factories are explicit operator-trusted installed Python code. Configuration is **not safe to accept from an untrusted client**. Model repositories/retrieved documents cannot select factories. The embedding object supplies `encode(texts)`, optionally `encode_queries(texts)`, and a stable representation `signature`. Rerankers supply `score(question, texts)` and a signature; token caching additionally requires `encode_documents`, `encode_query`, `score_vectors`. Generation returns a callable `(system, evidence_json) -> str` through the same citation validator. The Python API continues to accept these objects directly.
 
-Built-in `MiniLM`, `E5`, `CrossEncoder`, `ColBERT`, `ModernColBERT` remain explicit reproducible reference adapters. Their checkpoint-specific settings do not select or restrict production models. For example, `--embedding rag_pipeline.embeddings:MiniLM --dense ingest data`; querying vectors additionally selects `--mode hybrid`. Any installed factory can occupy that argument. Reranking is analogous: `--reranker rag_pipeline.embeddings:ColBERT prepare-reranker`.
+`ArcticM`, `BGESmall` and `GTEReranker` back the presets. ONNX adapters take `threads` (default: every available CPU) and run small batches as concurrent single-threaded sessions, which measured faster on CPU than one session spreading each small matrix across all cores. Built-in `MiniLM`, `E5`, `CrossEncoder`, `ColBERT`, `ModernColBERT` remain explicit reproducible reference adapters. Their checkpoint-specific settings do not select or restrict production models. For example, `--embedding rag_pipeline.embeddings:MiniLM --dense ingest data`; querying vectors additionally selects `--mode hybrid`. Any installed factory can occupy that argument. Reranking is analogous: `--reranker rag_pipeline.embeddings:ColBERT prepare-reranker`.
 
 ## Upgrade from 0.4
 

@@ -1,8 +1,15 @@
 # CLI
 
-Global `--index PATH` defaults to `processed_data/index.sqlite`. `--config FILE` selects explicit providers and search/answer budgets. No model is selected by default. `--embedding module:factory` and `--reranker module:factory` accept installed adapters without a fixed name list. `--dense`/`--rerank` require a supplied provider; chat generation requires a configuration and `--generate`. Place global flags before the command. See [configuration and migration](CONFIGURATION.md).
+Global `--index PATH` defaults to `processed_data/index.sqlite`. `--preset NAME` picks a measured stack in one word: `lexical` (BM25, no models), `fast` (bge-small int8 hybrid), `hybrid` (arctic-embed-m int8 hybrid, the best route measured) or `rerank` (`hybrid` plus a gte-reranker cross-encoder over the top 20 chunks, seconds per query on CPU). Use the same preset for `ingest` and queries. `--config FILE` selects explicit providers and search/answer budgets; its sections replace the preset's sections of the same name. No model is selected unless a preset or provider is named.
 
-`prepare-reranker` prepares the chosen token adapter's passage vectors; `evaluate --cache-reranker` reports that cost separately. `--vector-cache-mib 64` bounds the unfiltered dense matrix; `0` streams. Server embedding flags accept an explicit endpoint, model and immutable revision, with `--query-template`/`--passage-template`; plain text is the default. Network adapters send text to your chosen server. Local ONNX adapters do not send inference text to a model server.
+```bash
+rag-pipeline --preset hybrid ingest data
+rag-pipeline --preset hybrid search "Which obligations survive termination?"
+rag-pipeline --preset rerank ask "What was 2024 revenue?" --filter company=Acme
+```
+ `--embedding module:factory` and `--reranker module:factory` accept installed adapters without a fixed name list. `--dense`/`--rerank` require a supplied provider; chat generation requires a configuration and `--generate`. Place global flags before the command. See [configuration and migration](CONFIGURATION.md).
+
+`prepare-reranker` prepares the chosen token adapter's passage vectors; `evaluate --cache-reranker` reports that cost separately. `--vector-cache-mib 64` bounds the in-memory dense matrix that unfiltered and filtered queries share; `0` streams. Server embedding flags accept an explicit endpoint, model and immutable revision, with `--query-template`/`--passage-template`; plain text is the default. Network adapters send text to your chosen server. Local ONNX adapters do not send inference text to a model server.
 
 | Command | Behavior |
 | --- | --- |
