@@ -9,6 +9,8 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .answers import Operand, answer, calculate
+from .capabilities import probe
+from .components import PROFILES, resolve
 from .configuration import load_config, provider
 from .evaluation import evaluate
 from .index import Index
@@ -29,6 +31,12 @@ def main() -> int:
         "--preset",
         choices=sorted(PRESETS),
         help="Named measured stack; --config sections override its sections.",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["auto", *sorted(PROFILES)],
+        help="Resolve the best runnable component per stage for this machine; "
+        "see `doctor`. An existing index keeps the encoder it was built with.",
     )
     parser.add_argument(
         "--index", type=Path, default=Path("processed_data/index.sqlite")
@@ -134,6 +142,10 @@ def main() -> int:
             )
     sub.add_parser("status")
     sub.add_parser(
+        "doctor",
+        help="Print detected capabilities and the pipeline --profile resolves to.",
+    )
+    sub.add_parser(
         "prepare-reranker",
         help="Explicitly encode passage tokens once for ColBERT candidate reranking.",
     )
@@ -156,7 +168,29 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        config = preset_config(args.preset) if args.preset else {}
+        if args.preset and args.profile:
+            raise ValueError("Use --preset or --profile, not both")
+        plan = None
+        if args.profile or args.command == "doctor":
+            caps = probe()
+            pin = None
+            if args.command != "doctor" and args.index.is_file():
+                with Index(args.index) as existing:
+                    recorded = existing.status()["plan"]
+                if recorded:
+                    pin = {"encoder": recorded["stages"]["encoder"]["use"]}
+            plan = resolve(args.profile or "auto", caps, pin=pin)
+            if args.command == "doctor":
+                print(
+                    json.dumps(
+                        {"capabilities": caps.to_dict(), "plan": plan.summary()},
+                        indent=2,
+                    )
+                )
+                return 0
+        config = (
+            plan.config() if plan else preset_config(args.preset) if args.preset else {}
+        )
         config.update(load_config(args.config) if args.config else {})
         search = dict(config.get("search", {}))
         for key, default in {
@@ -264,6 +298,7 @@ def main() -> int:
                         size=args.size,
                         overlap=args.overlap,
                         contextual=args.contextual,
+                        plan=plan.summary() if plan else None,
                     )
                 elif args.command == "status":
                     result = index.status()

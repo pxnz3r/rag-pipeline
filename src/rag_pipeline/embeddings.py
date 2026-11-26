@@ -49,9 +49,17 @@ class _ONNX:
         self.tokenizer.enable_truncation(max_length=self.length)
         self.tokenizer.enable_padding()
         self.workers = threads or min(_cpus(), 64)
-        concurrent = self.concurrent and self.workers > 1
-        graph = hf_hub_download(self.model, self.weights, revision=self.revision)
         providers = providers or ["CPUExecutionProvider"]
+        # Concurrent single-threaded sessions are a CPU technique; an
+        # accelerator runs one session and wants larger batches instead.
+        concurrent = (
+            self.concurrent
+            and self.workers > 1
+            and providers[0] == "CPUExecutionProvider"
+        )
+        if providers[0] != "CPUExecutionProvider":
+            self.batch_size = max(self.batch_size, 32)
+        graph = hf_hub_download(self.model, self.weights, revision=self.revision)
 
         def session(threads, spin=True):
             options = ort.SessionOptions()

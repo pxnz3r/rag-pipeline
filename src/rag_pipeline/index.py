@@ -228,9 +228,19 @@ class Index:
                 },
                 "generation": int(self._state("generation") or 0),
                 "embedding": self._state("embedding") or None,
+                "plan": json.loads(self._state("plan") or "null"),
             }
 
-    def ingest(self, root: str | Path, *, size=900, overlap=100, contextual=False):
+    def ingest(
+        self,
+        root: str | Path,
+        *,
+        size=900,
+        overlap=100,
+        contextual=False,
+        plan: dict | None = None,
+    ):
+        """Synchronize ``root`` atomically; ``plan`` records the resolved stages."""
         if not isinstance(contextual, bool):
             raise ValueError("Contextual must be a boolean")
         root = Path(root).resolve()
@@ -362,7 +372,7 @@ class Index:
                     for key, value in [
                         ("pipeline", pipeline),
                         ("embedding", signature),
-                    ]:
+                    ] + ([("plan", json.dumps(plan, sort_keys=True))] if plan else []):
                         self.db.execute(
                             "INSERT OR REPLACE INTO state VALUES(?,?)", (key, value)
                         )
