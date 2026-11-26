@@ -15,6 +15,30 @@ All 150 open-source FinanceBench questions over their 84 source filings (`script
 
 Before the parser change, 41 of the 84 filings failed to ingest at all.
 
+## Postgres store
+
+BEIR NDCG@10, lexical only, same corpora as the SQLite rows below:
+
+| Store and ranking | SciFact | NFCorpus | Median query |
+| --- | ---: | ---: | ---: |
+| SQLite FTS5 BM25 | 0.6815 | 0.3240 | 7 ms / 1 ms |
+| Postgres `ts_rank_cd` (first version) | 0.4299 | 0.2522 | 86 ms / 16 ms |
+| Postgres BM25 over postings (shipped) | 0.6867 | 0.3300 | 32 ms / 6 ms |
+
+Row-level security is tested against a real Postgres 16 with pgvector 0.6: a raw connection scoped to one tenant, or to none, reads none of another tenant's rows.
+
+## EmbeddingGemma-300M (int8)
+
+Hybrid, relative-score fusion, against the `hybrid` preset's arctic-embed-m at weight 0.6:
+
+| Dense weight | SciFact | NFCorpus | FinQA R@5 | CUAD char R | FiQA |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| arctic-embed-m, 0.6 (`hybrid`) | 0.7443 | 0.3664 | 76.11% | 63.72% | 0.3947 |
+| EmbeddingGemma, 0.5 | 0.7790 | 0.3843 | 76.62% | 65.32% | not measured |
+| EmbeddingGemma, 0.6 | 0.7921 | 0.3932 | 76.11% | 63.03% | not measured |
+
+At weight 0.5 it beats `hybrid` on all four measured sets. FiQA (82,740 chunks) did not finish indexing inside the 2-hour job limit: EmbeddingGemma encodes under 12 chunks/s here against arctic-embed-m's 27, and queries took about 240 ms against 70 ms. The preset stays arctic-embed-m until FiQA is measured.
+
 ## PDF extraction
 
 Over the 84 filings, measured with `scripts/compare_pdf_extraction.py` (gold evidence numbers found on the gold page):
