@@ -15,6 +15,24 @@ All 150 open-source FinanceBench questions over their 84 source filings (`script
 
 Before the parser change, 41 of the 84 filings failed to ingest at all.
 
+## FinanceBench answers
+
+The first 10 questions, `hybrid` preset, each question scoped to its filing, Qwen3.5-4B Q4_K_M on llama-server (4 CPU threads, 16k context, no reasoning), `scripts/benchmark_answers.py`. Correct means the cited answer's number matches the gold answer within 1% (`numeric_match`); a rejected or abstained answer counts as wrong.
+
+| Route | Correct | Cited | Rejected by validation | Median seconds |
+| --- | ---: | ---: | ---: | ---: |
+| Single shot, validator before tuning | 0 | 0 | 10 | not recorded |
+| Single shot (`ask`) | 4 | 6 | 4 | 178 |
+| Agent (`ask --agent`, 6 steps) | 4 | 5 | 4, plus 1 abstained | 326 |
+
+Both routes answered the same four questions correctly. The agent cost 1.8x the time without a gain at this model size. Of the six questions both got wrong:
+
+- Two were cited but wrong (04672 single-shot, 01865 both): the model chose the wrong figure in the right table.
+- The agent's 04672 answer cited a net sales total as net PP&E, and the number/unit check rejected it, which was correct.
+- The other four were rejected or abstained on both routes: 00499 and 01226 had unverifiable citations, and 02987 and 07966 had unsupported numbers or no answer.
+
+Ten questions is a small sample: one question is 10 points. These rows show the validator now accepts correctly quoted answers, not FinanceBench accuracy. Rows: `financebench-qwen3.5-4b-single.jsonl`, `financebench-qwen3.5-4b-agent.jsonl`, and `financebench-qwen3.5-4b-single-v1-validator.jsonl` for the old validator.
+
 ## Postgres store
 
 BEIR NDCG@10, lexical only, same corpora as the SQLite rows below:
