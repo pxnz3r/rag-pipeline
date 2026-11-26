@@ -2,8 +2,8 @@
 
 A preset is an ordinary pipeline configuration (the same schema as ``--config``)
 shipped with the package. Naming one is the explicit model choice; nothing is
-selected unless a preset or provider is named. Numbers behind each preset are
-in docs/TESTING.md and benchmarks/beir-0.7.jsonl.
+selected unless a preset or provider is named. The measurements behind each
+preset are in docs/TESTING.md and benchmarks/beir-0.7.jsonl.
 """
 
 from __future__ import annotations
@@ -11,28 +11,27 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 
+_FUSION = {"mode": "hybrid", "fusion": "relative", "dense_weight": 0.6}
+
+
+def _python(factory):
+    return {"kind": "python", "factory": f"rag_pipeline.embeddings:{factory}"}
+
+
 PRESETS = {
-    # Lexical BM25 only: no models, no downloads.
+    # BM25 only: no models, no downloads.
     "lexical": {"search": {"mode": "lexical"}},
-    # bge-small int8 + BM25, relative-score fusion weighted 0.6 to dense.
-    "hybrid": {
-        "embedding": {"kind": "python", "factory": "rag_pipeline.embeddings:BGESmall"},
-        "search": {"mode": "hybrid", "fusion": "relative", "dense_weight": 0.6},
-    },
-    # The hybrid route, then a gte-reranker cross-encoder over the top 20 chunks.
+    # bge-small int8 + BM25: about 3x faster to index than "hybrid", same BEIR
+    # and FinQA quality, but lower CUAD clause recall than the old MiniLM route.
+    "fast": {"embedding": _python("BGESmall"), "search": dict(_FUSION)},
+    # arctic-embed-m int8 + BM25, relative-score fusion weighted 0.6 to dense.
+    "hybrid": {"embedding": _python("ArcticM"), "search": dict(_FUSION)},
+    # "hybrid", then a gte-reranker cross-encoder over the top 20 chunks.
     # Seconds per query on CPU: worth it when precision matters more than time.
     "rerank": {
-        "embedding": {"kind": "python", "factory": "rag_pipeline.embeddings:BGESmall"},
-        "reranker": {
-            "kind": "python",
-            "factory": "rag_pipeline.embeddings:GTEReranker",
-        },
-        "search": {
-            "mode": "hybrid",
-            "fusion": "relative",
-            "dense_weight": 0.6,
-            "rerank_candidates": 20,
-        },
+        "embedding": _python("ArcticM"),
+        "reranker": _python("GTEReranker"),
+        "search": {**_FUSION, "rerank_candidates": 20},
     },
 }
 

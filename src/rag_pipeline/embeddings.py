@@ -410,6 +410,30 @@ class BGESmall(ONNXEmbedding):
         )
 
 
+class ArcticM(ONNXEmbedding):
+    """Snowflake arctic-embed-m-v1.5, int8 ONNX export, CLS pooling, 512 tokens.
+
+    The only encoder measured here whose hybrid route beat the previous
+    MiniLM route on all five benchmarks (BEIR SciFact, NFCorpus, FiQA, the
+    FinQA row proxy and CUAD clause spans). It costs about 3x bge-small's
+    encoding time and twice its vector bytes (768 dimensions).
+    """
+
+    def __init__(self, threads=None, providers=None):
+        super().__init__(
+            model="Snowflake/snowflake-arctic-embed-m-v1.5",
+            revision="e58a8f756156a1293d763f17e3aae643474e9b8a",
+            weights="onnx/model_quantized.onnx",
+            dimensions=768,
+            length=512,
+            pooling="cls",
+            query_prefix="Represent this sentence for searching relevant passages: ",
+            batch_size=4,
+            threads=threads,
+            providers=providers,
+        )
+
+
 class ONNXReranker(ONNXEmbedding):
     """Configured cross-encoder output; multiclass scoring is explicit."""
 
