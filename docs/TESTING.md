@@ -57,6 +57,23 @@ Hybrid, relative-score fusion, against the `hybrid` preset's arctic-embed-m at w
 
 At weight 0.5 it beats `hybrid` on all four measured sets. FiQA (82,740 chunks) did not finish indexing inside the 2-hour job limit: EmbeddingGemma encodes under 12 chunks/s here against arctic-embed-m's 27, and queries took about 240 ms against 70 ms. The preset stays arctic-embed-m until FiQA is measured.
 
+## Learned sparse retrieval (trial, not adopted)
+
+`scripts/trial_sparse.py` with OpenSearch's inference-free `doc-v3-distill`: documents go through a 67M DistilBERT masked-LM head, and a query is its tokens' IDF, so it costs no model call. The run is NDCG@10 against the EmbeddingGemma index, and the BM25+dense row reproduces the recorded numbers exactly. The model's training data includes the SciFact and NFCorpus train splits.
+
+| Route | SciFact | NFCorpus |
+| --- | ---: | ---: |
+| BM25 | 0.6815 | 0.3240 |
+| Sparse | 0.6944 | 0.3504 |
+| Dense | 0.7799 | 0.3843 |
+| BM25 + dense, 0.4/0.6 (`hybrid` fusion) | 0.7921 | 0.3932 |
+| Sparse + dense, 0.4/0.6 | 0.7868 | 0.3876 |
+| BM25 + sparse + dense, 0.2/0.2/0.6 | 0.7983 | 0.3937 |
+
+Sparse beats BM25 alone, but replacing BM25 with it in hybrid loses on both sets. As a third channel it adds 0.006 and 0.0005, about one query's worth. The price is a second encoder pass at ingest: 9.8 chunks/s here, slower than EmbeddingGemma, plus about 220 weighted terms per chunk. A machine that can afford that pass gains more from a dense encoder, so neither the lexical floor nor the presets change. Sparse query scoring took 0.4 ms.
+
+Late chunking (pooling chunk vectors from one long-context pass over the section) was not tried. SciFact and NFCorpus are mostly one chunk per document, so they can't show its effect. FinanceBench can, but needs two full EmbeddingGemma ingests of 57,357 chunks, about 80 minutes each at the measured rate, ahead of FiQA in the queue.
+
 ## PDF extraction
 
 Over the 84 filings, measured with `scripts/compare_pdf_extraction.py` (gold evidence numbers found on the gold page):

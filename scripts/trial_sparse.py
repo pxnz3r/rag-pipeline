@@ -202,16 +202,15 @@ def main():
                 if terms
                 else []
             )
-            dense = [
-                (cid, -negative)
-                for negative, cid in index._dense_ranking(
+            dense = list(
+                index._dense_ranking(
                     index._vectors([query["question"]], write=False)[0],
                     clause,
                     filter_args,
                     args.candidates,
                     0.3,
                 )
-            ]
+            )
             begun = time.perf_counter()
             tokens = list(vector)
             scores = (
