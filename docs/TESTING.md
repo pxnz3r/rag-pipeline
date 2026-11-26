@@ -1,3 +1,54 @@
+# Validation — unreleased (0.7)
+
+Machine: 4 vCPU Intel Xeon (Sapphire Rapids, 2.1 GHz, AVX-512 VNNI), 15 GiB RAM, no GPU; Python 3.13, ONNX Runtime 1.29.0, NumPy 2.5.3. Every number below comes from `scripts/benchmark_beir.py` or `rag-pipeline evaluate`; raw outputs are in [benchmarks/beir-0.7](../benchmarks/beir-0.7) and [benchmarks/domain-0.7](../benchmarks/domain-0.7).
+
+## Presets against the previous best route
+
+BEIR: full corpora and test queries from the pinned MTEB mirrors (`scripts/prepare_beir.py`), document ranking (`distinct_documents`, k=10), 40 candidates per channel, NDCG@10 with graded gains. FinQA and CUAD: the same proxies as 0.4 (k=5 evidence windows; FinQA row recall@5, CUAD character recall within the contract scope). Query time is the FiQA median (82,740 chunks).
+
+| Route | SciFact | NFCorpus | FiQA | FinQA R@5 | CUAD char R | FiQA ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| BM25 (`lexical`) | 0.6815 | 0.3240 | 0.2394 | 69.98% | 55.99% | 44 |
+| MiniLM + BM25, RRF (previous best) | 0.7183 | 0.3495 | 0.3593 | 72.28% | 63.62% | 72 |
+| bge-small int8 + BM25, relative 0.6 (`fast`) | 0.7388 | 0.3619 | 0.3946 | 75.85% | 58.58% | 56 |
+| arctic-embed-m int8 + BM25, relative 0.6 (`hybrid`) | **0.7443** | **0.3664** | **0.3947** | **76.11%** | **63.72%** | 70 |
+| `hybrid` + gte-reranker, top 20 (`rerank`) | **0.7559** | **0.3737** | **0.4415** | **79.42%** | **64.64%** | 3,165 |
+
+`hybrid` is the only first-stage route that beat the previous best on all five; its CUAD gain (+0.1 point) is within noise, so read it as "no legal regression". `fast` wins BEIR and FinQA but loses 5 points of CUAD clause recall. `rerank` improves `hybrid` on all five, most on FiQA (+4.7 NDCG points) and FinQA (+3.3 recall points), at about 3 s per query on 4 cores. The MiniLM row reproduces the recorded 0.4 values on SciFact, FinQA and CUAD exactly.
+
+## What was measured and not adopted
+
+- **Encoders** (hybrid, RRF, SciFact / NFCorpus NDCG@10): bge-small fp32 0.7306 / 0.3627, arctic-embed-s 0.7349 / 0.3531, gte-modernbert int8 0.7408 / 0.3564, nomic-embed-v1.5 int8 0.7269 / 0.3552. arctic-embed-s int8 had the best CUAD recall (65.14%) but fell below the old route on NFCorpus (0.3447). arctic-embed-m-v2 and EmbeddingGemma runs hit the 2-hour job limit and were not measured.
+- **Fusion**: relative-score fusion beat RRF at dense weight 0.6 on SciFact and FiQA (+4.1 points on FiQA for bge-small, where BM25 is weak) and tied on NFCorpus (0.3619 vs 0.3627). Weights 0.3 to 0.8 are in `fusion.jsonl` and `domain-0.7/sweep.jsonl`. Library defaults keep unweighted RRF; the presets carry the tuned values.
+- **Rerankers** over the bge-small hybrid route, top 20 (SciFact / NFCorpus): jina-reranker-v1-turbo fp32 0.7193 / 0.3565, mxbai-rerank-xsmall fp32 0.7069 / 0.3575, ms-marco MiniLM 0.6806 / 0.3619, mxbai-rerank-base int8 0.6653 / 0.3392. All lowered NDCG. gte-reranker's published int8 export lost most of its gain, and local per-channel int8 (all ops: 0.7159; MatMul only: 0.7341) fell below no reranking, so it runs fp32. At top 10 it adds less (0.7555 / 0.3666) for 1.9 s.
+- **ColBERT-small with cached tokens** on the `fast` route: 0.7397 / 0.3716 at 40 ms per query, but the token cache took 428 s and about 600 MB for SciFact alone. It stays an explicit option.
+- **Lexical query shape**: running FTS5 ranking before the joins gave identical results at the same speed (43.5 vs 42.4 ms); BM25 scoring itself is the cost.
+
+## Speed
+
+| Change | Before | After |
+| --- | ---: | ---: |
+| SciFact ingest, bge-small (fp32, 32-chunk window, 4-thread session → int8, 256-chunk window, concurrent 1-thread sessions) | 660 s | 118 s |
+| Encoder throughput, bge-small int8, 384 chunks (one 4-thread session → four 1-thread sessions) | 61 chunks/s | 81 chunks/s |
+| Query encoding, ArcticM (1-thread → 4-thread non-spinning session) | 15.5 ms | 8.5 ms |
+| FiQA dense scan, 82,740 × 768, cached (einsum → BLAS then exact rescoring) | 32 ms | 6.3 ms |
+| FiQA dense query over the old 64 MiB default (streamed → 512 MiB cached) | 356 ms | 6.3 ms |
+| FiQA hybrid query after query encoding (spinning → non-spinning threads) | 87 ms | 56 ms |
+| 48 PDFs × 20 pages, lexical ingest (`scripts/benchmark_pdf_ingest.py`, serial → parallel parsing) | 10.9 s | 2.8 s |
+
+Cached and streamed dense queries returned identical ids and scores on 40 FiQA queries. The core test suite and the `RAG_TEST_MODELS=1` model tests pass on Python 3.13.
+
+## Reproduce
+
+```bash
+pip install -e '.[models]'
+python scripts/prepare_beir.py fiqa /tmp/beir/fiqa.json
+python scripts/benchmark_beir.py /tmp/beir/fiqa.json --work /tmp/beir/work --embedder arctic-m-v1.5-q \
+  --mode hybrid --option fusion='"relative"' --option dense_weight=0.6 --reranker gte-reranker --rerank-candidates 20
+python scripts/prepare_finqa.py /tmp/finqa.json
+rag-pipeline --preset rerank evaluate /tmp/finqa.json -k 5 --repeats 1
+```
+
 # Validation — 0.6.1
 
 142 tests pass with actual pinned model assets on Python 3.10 and 3.12. Ordinary dense/hybrid encoding allows concurrent publication and complete WAL truncation; search returns the latest scoped evidence, rejects incompatible model replacement and preserves explicit caller-owned snapshots. On the static 98-question FinQA row proxy, complete Hit dictionaries (including scores, context and source revisions) are identical to merged 0.6; historical 0.5 rankings also match. This is a concurrency fix, not an answer-accuracy gain. [Regression artifact](../benchmarks/query-snapshot-0.6.1.json).
