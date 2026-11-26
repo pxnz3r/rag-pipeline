@@ -47,6 +47,9 @@ STOP = set(
 )
 
 
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?")
+
+
 def _walk_error(error):
     raise error
 
@@ -667,6 +670,7 @@ class Index:
         fusion="rrf",
         dense_weight=0.5,
         rerank_candidates=None,
+        as_of=None,
     ) -> list[Hit]:
         """Rank chunks, then return up to ``k`` original evidence windows.
 
@@ -722,6 +726,20 @@ class Index:
         if not terms:
             return []
         clause, args = self._filters(filters)
+        if as_of is not None:
+            # Point-in-time retrieval: only documents whose "published"
+            # metadata is on or before as_of. An undated document can't be
+            # shown to predate as_of, so it is excluded (no look-ahead).
+            if not isinstance(as_of, str) or not _ISO_DATE.fullmatch(as_of):
+                raise ValueError("as_of must be an ISO date or datetime")
+            # A date-only value counts as the end of that day, so a filing
+            # dated the same day as an intraday as_of stays excluded.
+            clause += (
+                " AND d.id IN (SELECT document FROM document_metadata "
+                "WHERE key='published' AND (CASE WHEN length(value)=10 "
+                "THEN value||'T23:59:59' ELSE value END)<=?)"
+            )
+            args = [*args, as_of if "T" in as_of else as_of + "T23:59:59"]
         query = None
         if mode != "lexical":
             if not self.db.execute("SELECT 1 FROM chunks LIMIT 1").fetchone():

@@ -130,8 +130,10 @@ def answer(
     filters=None,
     max_evidence_chars=12000,
     context_order="ranked",
+    guidance="",
     **search_options,
 ) -> Answer:
+    """``guidance`` adds domain instructions (a ``domains.Domain``) to generation."""
     _evidence_budget(max_evidence_chars)
     if context_order not in {"ranked", "source"}:
         raise ValueError("Unknown evidence context order")
@@ -153,6 +155,7 @@ def answer(
             generate=generate,
             max_evidence_chars=max_evidence_chars,
             source_key=source_key,
+            guidance=guidance,
         )
 
 
@@ -199,7 +202,13 @@ def _pack_evidence(retrieved, max_evidence_chars):
 
 
 def _answer_evidence(
-    question, retrieved, *, generate=None, max_evidence_chars=12000, source_key=None
+    question,
+    retrieved,
+    *,
+    generate=None,
+    max_evidence_chars=12000,
+    source_key=None,
+    guidance="",
 ):
     """Shared citation validation for trusted retrieval/read tool outputs."""
     hits = _pack_evidence(retrieved, max_evidence_chars)
@@ -217,6 +226,10 @@ def _answer_evidence(
         "Use verbatim nonempty quotes. Cover every claim with evidence. "
         "Return an empty claims list if the evidence is insufficient. Do not calculate new numbers."
     )
+    if not isinstance(guidance, str) or len(guidance) > 2000:
+        raise ValueError("Domain guidance must be a string under 2000 characters")
+    if guidance:
+        system += " Domain guidance: " + guidance
     try:
         payload = json.dumps(
             {"question": question, "evidence": [h.to_dict() for h in hits]}

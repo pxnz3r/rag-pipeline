@@ -251,7 +251,28 @@ class Navigation:
             lambda: calculate(operation, parsed, list(self._evidence.values())),
         )
 
-    def answer(self, question, *, plan, generate=None, max_evidence_chars=12000):
+    def citations(self, document, locator):
+        """Legal citations in one section, with exact offsets (derived data)."""
+        from .domains import citations
+
+        def execute():
+            row = self.index.db.execute(
+                "SELECT s.text FROM sections s JOIN documents d ON d.id=s.document "
+                "WHERE s.document=? AND s.locator=?"
+                + self.index._filters(self.filters)[0],
+                [document, locator, *self.index._filters(self.filters)[1]],
+            ).fetchone()
+            if row is None:
+                return {"status": "not_found"}
+            return {"status": "found", "citations": citations(row[0])[:200]}
+
+        return self._call(
+            "citations", dict(document=document, locator=locator), execute
+        )
+
+    def answer(
+        self, question, *, plan, generate=None, max_evidence_chars=12000, guidance=""
+    ):
         """Run bounded model-directed navigation, then validate original citations.
 
         `plan(system, payload)` returns JSON {action, arguments}. It may browse,
@@ -270,7 +291,7 @@ class Navigation:
             "documents(offset=0,limit=20), outline(document,offset=0,limit=20), "
             "headings(document,parent=null,offset=0,limit=20), "
             "read(document,locator,start=0,chars=4000), "
-            "search(question,k=5), "
+            "search(question,k=5), citations(document,locator), "
             "calculate(operation,operands), answer(). "
             "Calculation operations: sum, difference, ratio, growth_percent. "
             "Operands: {source_id,quote,value,unit}, all strings copied from read/search evidence. "
@@ -280,7 +301,7 @@ class Navigation:
             "Read relevant sections before answering; use answer with empty arguments "
             "when evidence is sufficient or nothing else can be found. "
             "You have a bounded number of steps and characters; paginate only as needed."
-        )
+        ) + (f" Domain guidance: {guidance}" if guidance else "")
         history, evidence, calculations = [], {}, []
         available_calls = self.max_calls - len(self.trace)
         # Tool calls are capped by the session budget; malformed replies get a
@@ -333,6 +354,7 @@ class Navigation:
                         list(evidence.values()),
                         generate=generate,
                         max_evidence_chars=max_evidence_chars,
+                        guidance=guidance,
                     )
             if name not in {
                 "documents",
@@ -340,6 +362,7 @@ class Navigation:
                 "headings",
                 "read",
                 "search",
+                "citations",
                 "calculate",
             }:
                 history.append(dict(action=name, error="Unknown navigation action"))
@@ -375,6 +398,7 @@ class Navigation:
                 list(evidence.values()),
                 generate=generate,
                 max_evidence_chars=max_evidence_chars,
+                guidance=guidance,
             )
 
 

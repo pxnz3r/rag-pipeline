@@ -8,6 +8,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from . import domains
 from .answers import Operand, answer, calculate
 from .capabilities import probe
 from .components import PROFILES, resolve
@@ -26,6 +27,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--config", type=Path, help="Explicit JSON pipeline/provider configuration."
+    )
+    parser.add_argument(
+        "--domain",
+        default="general",
+        choices=sorted(domains.registry()),
+        help="Domain pack: search defaults, answer guidance, local-only rules.",
     )
     parser.add_argument(
         "--preset",
@@ -105,6 +112,12 @@ def main() -> int:
             "--mode", choices=["lexical", "dense", "hybrid"], default=None
         )
         query.add_argument("--match", choices=["all", "any"], default=None)
+        query.add_argument(
+            "--as-of",
+            default=None,
+            help="Point in time (ISO date/datetime): only documents with metadata "
+            "published on or before it.",
+        )
         query.add_argument(
             "--distinct-documents",
             action="store_true",
@@ -188,8 +201,16 @@ def main() -> int:
         if args.preset and args.profile:
             raise ValueError("Use --preset or --profile, not both")
         plan = None
+        domain = domains.get(args.domain)
+        # A local-only domain (healthcare) keeps every stage on this machine
+        # unless the operator explicitly allows the network.
+        network = (
+            False
+            if domain.local_only and os.environ.get("RAG_ALLOW_NETWORK") != "1"
+            else None
+        )
         if args.profile or args.command == "doctor":
-            caps = probe()
+            caps = probe(network=network)
             pin = None
             if args.command != "doctor" and args.index.is_file():
                 with Index(args.index) as existing:
@@ -209,7 +230,7 @@ def main() -> int:
             plan.config() if plan else preset_config(args.preset) if args.preset else {}
         )
         config.update(load_config(args.config) if args.config else {})
-        search = dict(config.get("search", {}))
+        search = {**domain.search, **config.get("search", {})}
         for key, default in {
             "k": 5,
             "mode": "lexical",
@@ -376,6 +397,8 @@ def main() -> int:
                         match=args.match,
                         distinct_documents=args.distinct_documents,
                     )
+                    if args.as_of:
+                        opts["as_of"] = args.as_of
                     if args.command == "search":
                         result = [
                             hit.to_dict() for hit in index.search(args.question, **opts)
@@ -419,6 +442,7 @@ def main() -> int:
                                 max_evidence_chars=config.get("answer", {}).get(
                                     "max_evidence_chars", 12000
                                 ),
+                                guidance=domain.guidance,
                             )
                         ) | {"trace": session.trace}
                     elif args.command == "ask":
@@ -434,6 +458,7 @@ def main() -> int:
                                     "max_evidence_chars", 12000
                                 ),
                                 generate=generator,
+                                guidance=domain.guidance,
                                 **opts,
                             )
                         )

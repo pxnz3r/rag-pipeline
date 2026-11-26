@@ -40,6 +40,7 @@ SEARCH_OPTIONS = {
     "fusion",
     "dense_weight",
     "rerank_candidates",
+    "as_of",
 }
 MAX_BODY = 1024 * 1024
 

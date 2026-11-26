@@ -33,6 +33,13 @@ def metadata(values: dict, *, max_fields: int = 32) -> dict:
             or "\x00" in str(value)
         ):
             raise ValueError("Metadata requires short named string/integer fields")
+    published = values.get("published")
+    if published is not None and not (
+        isinstance(published, str)
+        and re.fullmatch(r"\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?", published)
+    ):
+        # Point-in-time search compares these as strings; only ISO sorts right.
+        raise ValueError("published must be an ISO date or datetime (2024-03-01)")
     return values.copy()
 
 
@@ -138,14 +145,17 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
                     text, parse_float=str, parse_int=str, parse_constant=_nonfinite
                 )
             )
-            objects = objects if isinstance(objects, list) else [objects]
-            # Explicit keys, original numeric spellings for JSON string values, and
-            # stable row locators. JSON numeric lexical spelling may be normalized.
-            sections, extracted_bytes = [], 0
-            for i, obj in enumerate(objects, 1):
-                rendered = _bounded_json(obj, MAX_BYTES - extracted_bytes)
-                extracted_bytes += len(rendered.encode("utf-8"))
-                sections.append((f"record {i}", rendered))
+            if _is_companyfacts(objects):
+                sections = _companyfacts_sections(objects)
+            else:
+                objects = objects if isinstance(objects, list) else [objects]
+                # Explicit keys, original numeric spellings for JSON string
+                # values, and stable row locators.
+                sections, extracted_bytes = [], 0
+                for i, obj in enumerate(objects, 1):
+                    rendered = _bounded_json(obj, MAX_BYTES - extracted_bytes)
+                    extracted_bytes += len(rendered.encode("utf-8"))
+                    sections.append((f"record {i}", rendered))
         else:
             sections = [("text", text)]
     sections = _bounded_sections(sections)
@@ -156,6 +166,53 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
     if not sections or not any(text.strip() for _, text in sections):
         raise ValueError(f"No extractable text in {path.name}; scanned PDFs need OCR")
     return Document(doc_id, fingerprint, meta, sections)
+
+
+def _is_companyfacts(obj):
+    """SEC XBRL company facts (data.sec.gov/api/xbrl/companyfacts/CIK*.json)."""
+    return (
+        isinstance(obj, dict)
+        and isinstance(obj.get("facts"), dict)
+        and "entityName" in obj
+    )
+
+
+def _companyfacts_sections(obj):
+    """One section per reported concept: every value with unit, period and filing.
+
+    Values keep their JSON spelling (parsed as strings), so a quote of
+    ``val`` is the filed number exactly.
+    """
+    entity = str(obj["entityName"])
+    sections, total = [], 0
+    for taxonomy, concepts in sorted(obj["facts"].items()):
+        if not isinstance(concepts, dict):
+            continue
+        for concept, info in sorted(concepts.items()):
+            if not isinstance(info, dict) or not isinstance(info.get("units"), dict):
+                continue
+            label = str(info.get("label") or concept)
+            lines = [f"{entity}: {label} ({taxonomy}:{concept})"]
+            for unit, rows in sorted(info["units"].items()):
+                for row in rows if isinstance(rows, list) else []:
+                    if not isinstance(row, dict) or "val" not in row:
+                        continue
+                    period = (
+                        f"{row['start']} to {row['end']}"
+                        if row.get("start")
+                        else f"as of {row.get('end', '?')}"
+                    )
+                    lines.append(
+                        f"{label}, {unit}, {period}, FY{row.get('fy', '?')} "
+                        f"{row.get('fp', '')}, {row.get('form', '')} filed "
+                        f"{row.get('filed', '?')}: {row['val']}"
+                    )
+            text = "\n".join(lines)
+            total += len(text.encode("utf-8"))
+            if total > MAX_BYTES:
+                raise ValueError("Normalized extraction exceeds 20 MiB")
+            sections.append((f"{taxonomy}:{concept}", text))
+    return sections
 
 
 def pdf_sections(raw: bytes) -> list[tuple[str, str]]:

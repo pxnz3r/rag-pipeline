@@ -727,3 +727,38 @@ def test_query_preserves_caller_owned_snapshot(tmp_path):
         assert not reader.db.in_transaction
         del reader.embedder.encode_queries
         assert reader.search("Revenue", mode="dense")[0].text == "Revenue was 240."
+
+
+def test_as_of_never_sees_later_or_undated_documents(tmp_path):
+    root = tmp_path / "corpus"
+    source(root, "q1.txt", "Guidance raised to 5%.", published="2024-04-20")
+    source(root, "q2.txt", "Guidance cut to 2%.", published="2024-07-21T16:05")
+    source(root, "same-day.txt", "Guidance withdrawn.", published="2024-07-21")
+    source(root, "undated.txt", "Guidance rumor.")
+    with Index(tmp_path / "i.sqlite", Encoder()) as index:
+        index.ingest(root)
+        for mode in ("lexical", "hybrid"):
+            seen = {
+                h.document
+                for h in index.search(
+                    "guidance", k=10, mode=mode, as_of="2024-07-21T09:30"
+                )
+            }
+            assert seen == {"q1.txt"}, mode
+        assert {
+            h.document for h in index.search("guidance", k=10, as_of="2024-07-21")
+        } == {
+            "q1.txt",
+            "q2.txt",
+            "same-day.txt",
+        }
+        assert len(index.search("guidance", k=10)) == 4
+        with pytest.raises(ValueError, match="as_of"):
+            index.search("guidance", as_of="July 2024")
+    bad = tmp_path / "bad"
+    source(bad, "x.txt", "text", published="Q2 2024")
+    with (
+        Index(tmp_path / "bad.sqlite") as index,
+        pytest.raises(ValueError, match="ISO"),
+    ):
+        index.ingest(bad)
