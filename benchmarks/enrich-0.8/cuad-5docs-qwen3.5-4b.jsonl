@@ -1,0 +1,4 @@
+{"dataset": "cuad", "documents": 5, "queries": 67, "chunks": 428, "mode": "lexical", "embedder": "none", "enrichment": null, "recall@5": 1.0, "ndcg@5": 1.0, "character_recall": 0.5448, "model_calls": 0, "seconds": 0.2}
+{"dataset": "cuad", "documents": 5, "queries": 67, "chunks": 428, "mode": "lexical", "embedder": "none", "enrichment": "qwen3.5-4b", "recall@5": 1.0, "ndcg@5": 1.0, "character_recall": 0.5423, "model_calls": 428, "seconds": 5249.4}
+{"dataset": "cuad", "documents": 5, "queries": 67, "chunks": 428, "mode": "hybrid", "embedder": "arctic-m-v1.5-q", "enrichment": null, "recall@5": 1.0, "ndcg@5": 1.0, "character_recall": 0.5978, "model_calls": 0, "seconds": 17.8}
+{"dataset": "cuad", "documents": 5, "queries": 67, "chunks": 428, "mode": "hybrid", "embedder": "arctic-m-v1.5-q", "enrichment": "qwen3.5-4b", "recall@5": 1.0, "ndcg@5": 1.0, "character_recall": 0.6182, "model_calls": 0, "seconds": 20.0}

@@ -57,6 +57,17 @@ Hybrid, relative-score fusion, against the `hybrid` preset's arctic-embed-m at w
 
 At weight 0.5 it beats `hybrid` on all four measured sets. FiQA (82,740 chunks) did not finish indexing inside the 2-hour job limit: EmbeddingGemma encodes under 12 chunks/s here against arctic-embed-m's 27, and queries took about 240 ms against 70 ms. The preset stays arctic-embed-m until FiQA is measured.
 
+## LLM chunk context (`--enrich`)
+
+`scripts/benchmark_enrich.py` ran on the first 5 CUAD contracts: 428 chunks and the 67 queries judged against them. Each query is scoped to its contract, so document recall is 100% and character recall of the annotated clause spans at k=5 is the metric. The context writer was Qwen3.5-4B Q4_K_M on llama-server, one call per chunk.
+
+| Route | Plain | Enriched |
+| --- | ---: | ---: |
+| `lexical` | 54.48% | 54.23% |
+| `hybrid` (arctic-embed-m, relative 0.6) | 59.78% | 61.82% |
+
+Context sentences named the agreement, parties and clause, for example "defines 'Confidential Information' within the Supply Agreement between Integra and PcoMed". They helped the dense channel (+2.0 points) and did nothing for BM25. On this CPU they cost 12.3 s per chunk, about 3.4 hours per 1,000 chunks, so enrichment stays opt-in: worth it with a fast or hosted chat model, not on a laptop's CPU. A 67-query subset is small, so the +2.0 is indicative, not settled. Rows: [benchmarks/enrich-0.8](../benchmarks/enrich-0.8).
+
 ## Learned sparse retrieval (trial, not adopted)
 
 `scripts/trial_sparse.py` with OpenSearch's inference-free `doc-v3-distill`: documents go through a 67M DistilBERT masked-LM head, and a query is its tokens' IDF, so it costs no model call. The run is NDCG@10 against the EmbeddingGemma index, and the BM25+dense row reproduces the recorded numbers exactly. The model's training data includes the SciFact and NFCorpus train splits.
