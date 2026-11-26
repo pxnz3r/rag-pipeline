@@ -118,6 +118,8 @@ class Answer:
     answer: str
     sources: list[Hit] = field(default_factory=list)
     claims: list[dict] = field(default_factory=list)
+    # Why generation failed validation (our own messages, never server text).
+    detail: str = ""
 
 
 def answer(
@@ -221,18 +223,18 @@ def _answer_evidence(
         )
         raw = generate(system, payload)
         if not isinstance(raw, str) or len(raw) > 50000:
-            raise ValueError("Oversized generation response")
-        result = json.loads(raw)
+            raise _Rejected("Oversized generation response")
+        result = _first_json_object(raw)
         if (
             not isinstance(result, dict)
             or set(result) != {"claims"}
             or not isinstance(result["claims"], list)
         ):
-            raise ValueError("Invalid response schema")
+            raise _Rejected("Invalid response schema")
         if not result["claims"]:
             return Answer("abstained", "", hits)
         if len(result["claims"]) > 20:
-            raise ValueError("Too many claims")
+            raise _Rejected("Too many claims")
         sources = {h.id: h for h in hits}
         for claim in result["claims"]:
             if (
@@ -243,11 +245,11 @@ def _answer_evidence(
                 or not isinstance(claim["evidence"], list)
                 or not 1 <= len(claim["evidence"]) <= 10
             ):
-                raise ValueError("Invalid claim")
+                raise _Rejected("Invalid claim")
             quotes = []
             for cite in claim["evidence"]:
                 if not isinstance(cite, dict) or set(cite) != {"source_id", "quote"}:
-                    raise ValueError("Invalid citation")
+                    raise _Rejected("Invalid citation")
                 source = sources.get(cite["source_id"])
                 quote = cite["quote"]
                 if (
@@ -256,25 +258,43 @@ def _answer_evidence(
                     or not quote.strip()
                     or not _grounded_quote(source, quote)
                 ):
-                    raise ValueError("Unverifiable citation")
+                    raise _Rejected("Unverifiable citation")
                 quotes.append(quote)
             quoted = " ".join(quotes)
             if not _numbers(claim["text"]) <= _numbers(quoted):
-                raise ValueError("Unsupported numeric claim")
+                raise _Rejected("Unsupported numeric claim")
             if not _units(claim["text"]) <= _units(quoted):
-                raise ValueError("Unsupported currency, scale or measurement unit")
+                raise _Rejected("Unsupported currency, scale or measurement unit")
             quantities = _quantities(quoted)
             bound_numbers = {number for number, _ in quantities}
             if any(
                 number in bound_numbers and (number, unit) not in quantities
                 for number, unit in _quantities(claim["text"])
             ):
-                raise ValueError("Number/unit binding is absent from quote")
+                raise _Rejected("Number/unit binding is absent from quote")
         claims = result["claims"]
         return Answer("cited", "\n".join(c["text"] for c in claims), hits, claims)
+    except _Rejected as error:
+        return Answer("generation_failed", "", hits, detail=str(error))
     except Exception:
         # Do not expose remote prompts, credentials, or server response bodies.
-        return Answer("generation_failed", "", hits)
+        return Answer("generation_failed", "", hits, detail="generation error")
+
+
+class _Rejected(ValueError):
+    """A validation failure whose message is ours and safe to return."""
+
+
+def _first_json_object(raw):
+    """The first JSON object in a reply; models wrap JSON in fences or prose."""
+    start = raw.find("{")
+    if start < 0:
+        raise _Rejected("Response contains no JSON object")
+    try:
+        result, _ = json.JSONDecoder().raw_decode(raw[start:])
+    except json.JSONDecodeError:
+        raise _Rejected("Response JSON is malformed") from None
+    return result
 
 
 @dataclass(frozen=True)
