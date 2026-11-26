@@ -176,20 +176,32 @@ def answer(
         )
 
 
-def _grounded_quote(source, quote):
-    """A quoted numeric token must be complete in the original source window."""
+def _quote_spans(source, quote):
+    """Exact source spans a quote matches, whitespace runs treated as equal.
+
+    PDF and table text break lines between cells ("PP&E)\\n(1,577)") where a
+    quote has a space; matching whitespace runs loosely still pins the quote
+    to one exact span of original text. Every number the span touches must
+    lie wholly inside it, so "125" never matches inside "1250".
+    """
+    words = quote.split()
+    if not words:
+        return []
+    pattern = r"\s+".join(re.escape(word) for word in words)
     guarded = source.source_prefix + source.text + source.source_suffix
     prefix = len(source.source_prefix)
-    numbers = {(m.start(), m.end()) for m in CLAIM_NUMBER.finditer(guarded)}
-    quoted = [(m.start(), m.end()) for m in CLAIM_NUMBER.finditer(quote)]
-    return any(
-        all(
-            (prefix + occurrence.start() + start, prefix + occurrence.start() + end)
-            in numbers
-            for start, end in quoted
-        )
-        for occurrence in re.finditer(re.escape(quote), source.text)
-    )
+    numbers = [(m.start(), m.end()) for m in CLAIM_NUMBER.finditer(guarded)]
+    spans = []
+    for occurrence in re.finditer(pattern, source.text):
+        start, end = prefix + occurrence.start(), prefix + occurrence.end()
+        if all(a >= start and b <= end for a, b in numbers if a < end and b > start):
+            spans.append((occurrence.start(), occurrence.end()))
+    return spans
+
+
+def _grounded_quote(source, quote):
+    """A quote matches original text, with every touched number complete."""
+    return bool(_quote_spans(source, quote))
 
 
 def _evidence_budget(value):

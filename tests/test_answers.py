@@ -47,6 +47,19 @@ def test_source_order_keeps_evidence_budget_and_numerical_row_order(tmp_path):
         assert sum(len(h.text) for h in ordered.sources) <= 300
 
 
+def test_quotes_match_across_pdf_line_breaks_but_not_inside_numbers():
+    from rag_pipeline.answers import _quote_spans
+
+    text = "Purchases of property, plant and equipment (PP&E)\n \n(1,577)\n(1,373)"
+    hit = Hit("cf#page 60:0-70", "cf", "page 60", 0, len(text), text, {}, 1)
+    spans = _quote_spans(
+        hit, "Purchases of property, plant and equipment (PP&E) (1,577)"
+    )
+    assert spans and text[spans[0][0] : spans[0][1]].endswith("(1,577)")
+    assert not _quote_spans(hit, "(1,5")  # a partial number is not a quote
+    assert not _quote_spans(hit, "plant and equipment (PP&E) (1,578)")
+
+
 def test_accounting_parentheses_and_one_repair_turn():
     quote = "Loss USD millions: (12.50)."
     good = {
