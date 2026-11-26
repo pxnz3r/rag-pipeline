@@ -38,6 +38,7 @@ models = ["numpy>=1.24", "onnxruntime>=1.23.1,<2", "tokenizers>=0.22.1,<1", "hug
 generation = ["groq>=0.31.0,<2"]
 anthropic = ["anthropic>=2.14,<3"]
 mcp = ["mcp>=2.3,<3"]
+postgres = ["psycopg[binary]>=3.3,<4"]
 
 [project.scripts]
 rag-pipeline = "rag_pipeline.cli:main"

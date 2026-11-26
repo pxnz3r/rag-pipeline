@@ -78,7 +78,11 @@ class Engine:
         generator=None,
         search=None,
         plan=None,
+        postgres=None,
     ):
+        """``postgres`` (a DSN) stores every tenant in one Postgres database
+        under row-level security instead of one SQLite file per tenant."""
+        self.postgres = postgres
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.keys, self.plan = keys, plan
@@ -103,12 +107,18 @@ class Engine:
             if tenant not in self._indexes:
                 # Server threads share the connection; every use below holds
                 # the tenant's lock, so calls never interleave.
-                index = Index(
-                    self.root / f"{tenant}.sqlite",
-                    self.embedder,
-                    self.reranker,
-                    shared_threads=True,
-                )
+                if self.postgres:
+                    from .pg_store import PgIndex
+
+                    # Row-level security scopes this connection to the tenant.
+                    index = PgIndex(self.postgres, tenant, self.embedder, self.reranker)
+                else:
+                    index = Index(
+                        self.root / f"{tenant}.sqlite",
+                        self.embedder,
+                        self.reranker,
+                        shared_threads=True,
+                    )
                 self._indexes[tenant] = (index, threading.Lock())
             return self._indexes[tenant]
 

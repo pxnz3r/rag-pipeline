@@ -203,6 +203,12 @@ def main() -> int:
     )
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8080)
+    serve_parser.add_argument(
+        "--postgres",
+        metavar="DSN",
+        help="Store tenants in Postgres with row-level security (run "
+        "rag_pipeline.pg_store.install once); default is one SQLite file each.",
+    )
     sub.add_parser("mcp", help="MCP server over stdio for agents (needs [mcp] extra).")
     sub.add_parser(
         "prepare-reranker",
@@ -346,6 +352,7 @@ def main() -> int:
                 generator=generator,
                 search={k: v for k, v in search.items() if k != "k"},
                 plan=plan.summary() if plan else None,
+                postgres=args.postgres,
             )
             server = serve(engine, args.host, args.port)
             print(
