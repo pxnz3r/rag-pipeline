@@ -4,10 +4,10 @@ Guidance for coding agents (Claude Code, Codex, Cursor, etc.) working in this re
 
 ## Project
 
-`rag-pipeline` is local, evidence-first retrieval. One SQLite transaction holds original text, metadata, FTS5 and optional vectors. Answers return exact evidence with character offsets; optional generation must quote sources verbatim; arithmetic runs as source-bound `Decimal` operations.
+`rag-pipeline` is evidence-first retrieval and question answering. The goal is the highest answer accuracy with verifiable citations, on finance, legal, scientific and technical documents. Answers return exact evidence with character offsets; generation must quote sources verbatim; arithmetic runs as source-bound `Decimal` operations. The roadmap is [PLANS.md](PLANS.md).
 
-- Python 3.11+. Core runtime dependency: `pypdf` only.
-- Optional extras: `models` (NumPy, ONNX Runtime, tokenizers, huggingface-hub), `generation` (Groq client).
+- Python 3.11+.
+- Extras today: `models` (NumPy, ONNX Runtime, tokenizers, huggingface-hub), `generation` (Groq client). Add any dependency, extra, model, hosted API, GPU runtime or service the measurements justify.
 - CLI entry point: `rag-pipeline` → `rag_pipeline.cli:main`.
 
 ## Layout
@@ -49,29 +49,35 @@ RAG_TEST_MODELS=1 pytest
 
 Run the smallest relevant check first, for example `pytest tests/test_sources.py`, before the full suite.
 
-## Invariants
+## Guarantees
 
-Do not break these. Add a boundary regression test when you change behavior near one.
+These are the product's value, not limits. Add a boundary regression test when you change behavior near one.
 
-- **Provenance:** `Hit.text` and its offsets are always the original source text. Derived data (heading `context`, metadata prefixes) stays in separate fields and is never cited.
-- **Transactions:** ingest, publication and migrations are all-or-nothing. A failure rolls back the whole update. A missing source directory fails; it never deletes the corpus.
-- **No default model:** no model, vendor or server is chosen implicitly. A preset (`--preset`, `rag_pipeline.preset`) is an explicit choice; change a preset only with measurements on all five benchmarks in `docs/TESTING.md`. Retrieval makes no network calls unless the user configured a server; pinned weights download once on first use of an adapter.
-- **No executed model code:** numerical answers use explicit `Decimal` operations or the restricted expression evaluator. Never `eval` model output, load pickles, or run remote model code.
-- **Lean core:** don't add runtime dependencies to the core. Model and generation libraries belong in extras.
-- **Package owns policy:** extraction, retrieval and answer logic live in `src/rag_pipeline`. The notebook only calls installed APIs.
-- **Index signatures:** if you change extraction, chunking or encoding output, bump the relevant signature in `Index.ingest` so existing indexes rebuild instead of mixing formats.
+- **Provenance:** `Hit.text` and its offsets are always the original source text, so every citation can be checked. Derived data (heading `context`, LLM-written chunk context, metadata prefixes, parsed tables, page images) lives in separate fields, may feed indexing and ranking, and is never cited as source text.
+- **Transactions:** ingest, publication and migrations are all-or-nothing. A failure rolls back the whole update. A missing source directory fails; it never deletes the corpus. Sidecar indexes (ANN, token, image) are rebuilt from the committed store and swapped atomically.
+- **No executed model output:** numbers come from explicit `Decimal` operations or the restricted expression evaluator. Never `eval` model output or load untrusted pickles.
+- **Index signatures:** if you change extraction, chunking, enrichment or encoding output, bump the relevant signature in `Index.ingest` so existing indexes rebuild instead of mixing formats.
+
+## Open choices
+
+Nothing else is off the table. Pick by measurement:
+
+- Any model, size or vendor: local ONNX, GGUF, PyTorch, GPU or Apple execution providers, hosted embedding, reranking and chat APIs. Defaults and presets may select models.
+- Network calls when the configured route needs them, with API keys read from the environment.
+- Any dependency, storage engine, sidecar index, server or daemon mode.
+- LLM work at ingest or query time: contextual chunk descriptions, query rewriting, agentic multi-step retrieval, listwise reranking.
 
 ## Benchmarks
 
-- Record independent relevance judgments before tuning retrieval.
-- Report scope, exclusions and failures honestly. Don't claim state-of-the-art or production accuracy.
+- Judge changes on the suite in `docs/TESTING.md`: BEIR SciFact, NFCorpus, FiQA, the FinQA and CUAD proxies, plus answer-level FinanceBench and LegalBench-RAG once added (`PLANS.md` phase 0).
+- Adopt a change that wins the suite on balance; record every per-benchmark regression next to it.
+- Report scope, exclusions and failures honestly, and claim only what the measurements show.
 - Don't edit recorded result files in `benchmarks/` by hand; regenerate them with `scripts/`.
-- When a tuning experiment doesn't improve all benchmarks, document it as measured and not adopted.
 
 ## Tests
 
 - Prefer a small real-storage test over mocked adapters or wrapper tests.
-- Core tests must run offline. Anything that needs model weights goes behind `RAG_TEST_MODELS=1`.
+- The default test run stays offline so CI needs no keys. Tests that need model weights go behind `RAG_TEST_MODELS=1`; tests that call hosted APIs go behind `RAG_TEST_HOSTED=1`.
 
 ## Git and PRs
 
