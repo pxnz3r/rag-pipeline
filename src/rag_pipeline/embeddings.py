@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import numpy as np
 
@@ -71,7 +72,28 @@ class _ONNX:
                 graph, sess_options=options, providers=providers
             )
 
-        self.session = session(1 if concurrent else self.workers)
+        try:
+            self.session = session(1 if concurrent else self.workers)
+        except Exception as error:  # onnxruntime raises its own Fail type
+            if "External data" not in str(error):
+                raise
+            # Large graphs keep weights in "<graph>_data" beside the graph, and
+            # ONNX Runtime refuses data that resolves outside the graph's own
+            # folder, which the Hub cache's symlinks do. Fetch both as real
+            # files into one folder.
+            folder = (
+                Path.home()
+                / ".cache"
+                / "rag-pipeline"
+                / "models"
+                / f"{self.model.replace('/', '--')}@{self.revision}"
+            )
+            for name in (self.weights, self.weights + "_data"):
+                graph = hf_hub_download(
+                    self.model, name, revision=self.revision, local_dir=folder
+                )
+            graph = str(folder / self.weights)
+            self.session = session(1 if concurrent else self.workers)
         # A lone batch (a query) cannot spread across sessions, so it gets one
         # multi-threaded session, built on first use (ArcticM: 15.5 -> 8.5 ms).
         # Its threads must not spin after the run: spinning workers slowed the
