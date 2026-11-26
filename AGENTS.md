@@ -20,6 +20,7 @@ Guidance for coding agents (Claude Code, Codex, Cursor, etc.) working in this re
 | `src/rag_pipeline/reasoning.py`, `expressions.py` | Grounded numerical programs and formulas |
 | `src/rag_pipeline/navigation.py` | `Navigation`: budgeted, scoped document browsing |
 | `src/rag_pipeline/embeddings.py`, `token_cache.py` | Pinned ONNX encoders, rerankers, ColBERT token store |
+| `src/rag_pipeline/presets.py` | Named measured stacks (`lexical`, `fast`, `hybrid`, `rerank`) as bundled configurations |
 | `src/rag_pipeline/configuration.py`, `providers.py` | Explicit model/server/factory configuration |
 | `src/rag_pipeline/evaluation.py`, `retrieval_metrics.py` | Judged retrieval evaluation |
 | `src/rag_pipeline/cli.py` | Command-line interface |
@@ -54,7 +55,7 @@ Do not break these. Add a boundary regression test when you change behavior near
 
 - **Provenance:** `Hit.text` and its offsets are always the original source text. Derived data (heading `context`, metadata prefixes) stays in separate fields and is never cited.
 - **Transactions:** ingest, publication and migrations are all-or-nothing. A failure rolls back the whole update. A missing source directory fails; it never deletes the corpus.
-- **No default model:** no model, vendor or server is chosen implicitly. Retrieval makes no network calls unless the user configured a server.
+- **No default model:** no model, vendor or server is chosen implicitly. A preset (`--preset`, `rag_pipeline.preset`) is an explicit choice; change a preset only with measurements on all five benchmarks in `docs/TESTING.md`. Retrieval makes no network calls unless the user configured a server; pinned weights download once on first use of an adapter.
 - **No executed model code:** numerical answers use explicit `Decimal` operations or the restricted expression evaluator. Never `eval` model output, load pickles, or run remote model code.
 - **Lean core:** don't add runtime dependencies to the core. Model and generation libraries belong in extras.
 - **Package owns policy:** extraction, retrieval and answer logic live in `src/rag_pipeline`. The notebook only calls installed APIs.
