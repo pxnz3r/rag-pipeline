@@ -20,6 +20,22 @@ from .presets import config as preset_config
 from .reasoning import reason
 
 
+def _enricher(config):
+    """Chunk-context writer from the configured chat stage (plain text replies)."""
+    from .enrich import ChatEnricher
+
+    spec = config.get("generation")
+    if spec is None:
+        raise ValueError(
+            "--enrich needs a chat model (--profile with one, or --config)"
+        )
+    spec = {**spec, "options": dict(spec.get("options", {}))}
+    if spec.get("kind") == "openai":
+        spec["options"]["json_mode"] = False
+    identity = spec["options"].get("model") or spec.get("factory")
+    return ChatEnricher(provider(spec, "generation"), model=identity)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="rag-pipeline",
@@ -102,6 +118,12 @@ def main() -> int:
         default="pdfium",
         help="PDF extractor: pdfium (fast) or docling (tables and headings, "
         "needs the docling package, about a page a second on CPU).",
+    )
+    ingest.add_argument(
+        "--enrich",
+        action="store_true",
+        help="Have the configured chat model write a context sentence per chunk "
+        "(cached beside the index); one model call per new chunk.",
     )
     ingest.add_argument("--size", type=int, default=900)
     ingest.add_argument("--overlap", type=int, default=100)
@@ -385,6 +407,7 @@ def main() -> int:
                         contextual=args.contextual,
                         plan=plan.summary() if plan else None,
                         parser=args.parser,
+                        enricher=_enricher(config) if args.enrich else None,
                     )
                 elif args.command == "status":
                     result = index.status()

@@ -55,6 +55,15 @@ def _walk_error(error):
     raise error
 
 
+@contextmanager
+def _closing(resource):
+    try:
+        yield resource
+    finally:
+        if resource is not None:
+            resource.close()
+
+
 def _parse(paths, root, existing, parser="pdfium"):
     """Documents in path order, parsed a bounded window ahead on worker threads.
 
@@ -252,11 +261,13 @@ class Index:
         contextual=False,
         plan: dict | None = None,
         parser: str = "pdfium",
+        enricher=None,
     ):
         """Synchronize ``root`` atomically; ``plan`` records the resolved stages.
 
-        ``parser`` picks the PDF extractor and enters the pipeline signature,
-        so switching parsers rebuilds instead of mixing extractions.
+        ``parser`` picks the PDF extractor and ``enricher`` (an
+        ``enrich.ChatEnricher``) writes chunk context; both enter the pipeline
+        signature, so switching either rebuilds instead of mixing formats.
         """
         if parser not in PARSERS:
             raise ValueError(f"Unknown PDF parser {parser!r}")
@@ -295,6 +306,7 @@ class Index:
                 signature,
                 contextual and "headings-v2",
                 *([] if parser == "pdfium" else [f"pdf:{parser}"]),
+                *([] if enricher is None else [f"enrich:{enricher.signature}"]),
             ]
         )
         if self.db.in_transaction:
@@ -320,7 +332,15 @@ class Index:
             )
         # Parse and infer into a bounded on-disk stage, with no live writer lock.
         # Only changed documents are staged; unchanged indexes are not cloned.
-        with tempfile.TemporaryDirectory(prefix="rag-ingest-") as directory:
+        cache = None
+        if enricher is not None:
+            from .enrich import Cache
+
+            cache = Cache(self.path.with_name(self.path.name + ".enrich-cache"))
+        with (
+            tempfile.TemporaryDirectory(prefix="rag-ingest-") as directory,
+            _closing(cache),
+        ):
             staged_path = Path(directory) / "stage.sqlite"
             with Index(staged_path, self.embedder, vector_cache_bytes=0) as staged:
                 seen, changed, batch = set(), 0, []
@@ -338,7 +358,9 @@ class Index:
                         seen.add(doc.id)
                         if not rebuild and existing.get(doc.id) == doc.fingerprint:
                             continue
-                        staged._replace(doc, size, overlap, contextual, batch)
+                        staged._replace(
+                            doc, size, overlap, contextual, batch, enricher, cache
+                        )
                         changed += 1
                     staged._insert_chunks(batch)
                 staged_dimension = staged._state("dimension")
@@ -424,7 +446,14 @@ class Index:
         )
 
     def _replace(
-        self, doc: Document, size: int, overlap: int, contextual: bool, batch: list
+        self,
+        doc: Document,
+        size: int,
+        overlap: int,
+        contextual: bool,
+        batch: list,
+        enricher=None,
+        cache=None,
     ):
         self.db.execute("DELETE FROM documents WHERE id=?", (doc.id,))
         self.db.execute(
@@ -442,6 +471,9 @@ class Index:
         )
         title = " ".join(str(v) for v in doc.metadata.values())
         contextual = contextual and Path(doc.id).suffix.lower() in HEADING_FORMATS
+        # The opening of the document (cover, contents) names the entity and
+        # period that every later chunk belongs to.
+        opening = "\n".join(text for _, text in doc.sections)[:6000]
         for locator, text in doc.sections:
             section = self.db.execute(
                 "INSERT INTO sections(document,locator,text,chars) VALUES(?,?,?,?)",
@@ -469,7 +501,17 @@ class Index:
                         ),
                     )
                     active.append((level, node))
-            for a, b, context in contextual_spans(text, size, overlap, contextual):
+            spans_here = list(contextual_spans(text, size, overlap, contextual))
+            if enricher is not None and spans_here:
+                excerpt = opening + "\n...\n" + text[:4000]
+                written = enricher.contexts(
+                    excerpt, [text[a:b] for a, b, _ in spans_here], cache
+                )
+                spans_here = [
+                    (a, b, "\n".join(filter(None, (context, extra))))
+                    for (a, b, context), extra in zip(spans_here, written)
+                ]
+            for a, b, context in spans_here:
                 batch.append(
                     (
                         f"{doc.id}#{locator}:{a}-{b}",
