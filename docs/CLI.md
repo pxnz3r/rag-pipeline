@@ -1,5 +1,33 @@
 # CLI
 
+## Tiers, domains and serving
+
+`--profile auto|laptop|workstation|server` resolves the best runnable component for each stage on this machine: hosted services when their API key is set and the network is allowed, llama-server models when `RAG_LLAMA_*` settings point at them, local ONNX models (on CUDA, CoreML, OpenVINO or DirectML when present), down to BM25 and extractive answers. `doctor` prints what was detected and what each stage resolved to, with the reason every better option was skipped. An index records the plan it was built with and keeps that encoder; a query never falls back to a different one. `--profile` and `--preset` are alternatives.
+
+`--domain finance|law|healthcare|trading|general` adds a domain pack: search defaults, answer guidance in the generation prompt, and for healthcare a local-only rule (no hosted stage unless `RAG_ALLOW_NETWORK=1`). `RAG_ALLOW_NETWORK=0` keeps every stage local for any domain.
+
+```bash
+rag-pipeline doctor
+rag-pipeline --profile auto --domain finance ingest filings/ --parser docling
+rag-pipeline --profile auto --domain finance ask "FY2024 operating margin?" --agent
+rag-pipeline --profile auto --domain trading search "guidance" --as-of 2024-07-21T09:30
+RAG_API_KEYS="acme:<16+ chars>:admin" rag-pipeline --profile auto serve --root /srv/rag
+rag-pipeline --profile auto mcp     # stdio MCP server for agents
+```
+
+| Command or flag | Behavior |
+| --- | --- |
+| `doctor` | Capabilities (CPUs, RAM, ONNX execution providers, keys present, settings, network) and the resolved plan |
+| `ingest --parser pdfium\|docling` | PDF extractor; part of the index signature, so switching rebuilds |
+| `ask --agent [--max-steps 12]` | The chat model searches, reads sections, walks headings, extracts legal citations and calculates before answering; malformed steps are reported back to it; the trace is returned |
+| `--as-of DATE` on queries | Only documents whose `published` metadata (ISO date or datetime) is on or before it; undated documents are excluded |
+| `serve [--root DIR --host 127.0.0.1 --port 8080]` | HTTP JSON API (`/v1/status`, `/v1/search`, `/v1/ask`, admin `/v1/ingest`); one index per tenant; append-only `audit.jsonl` |
+| `mcp` | Model Context Protocol server over stdio with read-only `search`, `list_documents`, `outline`, `read` tools (`[mcp]` extra) |
+
+Settings read from the environment: hosted keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `VOYAGE_API_KEY`, `COHERE_API_KEY`, `ZEROENTROPY_API_KEY`), model names for chat routes without a fixed default (`RAG_OPENAI_MODEL`, `RAG_GEMINI_MODEL`), llama-server endpoints and models (`RAG_LLAMA_SERVER`, `RAG_LLAMA_MODEL`, `RAG_LLAMA_EMBED_SERVER`, `RAG_LLAMA_EMBED_MODEL`, `RAG_LLAMA_RERANK_SERVER`, `RAG_LLAMA_RERANK_MODEL`), `RAG_ALLOW_NETWORK`, and `RAG_API_KEYS` for `serve` (`tenant:key[:admin],...`).
+
+## Commands
+
 Global `--index PATH` defaults to `processed_data/index.sqlite`. `--preset NAME` picks a measured stack in one word: `lexical` (BM25, no models), `fast` (bge-small int8 hybrid), `hybrid` (arctic-embed-m int8 hybrid, the best route measured) or `rerank` (`hybrid` plus a gte-reranker cross-encoder over the top 20 chunks, seconds per query on CPU). Use the same preset for `ingest` and queries. `--config FILE` selects explicit providers and search/answer budgets; its sections replace the preset's sections of the same name. No model is selected unless a preset or provider is named.
 
 ```bash

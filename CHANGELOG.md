@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- PDFs parse with PDFium (pypdfium2) instead of pypdf: 41 of 84 FinanceBench filings failed before (owner-password encryption, oversized layout text, NUL characters); all now ingest, 16x faster, with more gold evidence numbers kept. `ingest --parser docling` adds Docling's Markdown tables and headings. Indexes rebuild once (extraction signature v5).
+- `--profile auto|laptop|workstation|server` and `doctor`: per-stage capability tiers from hosted services and llama-server down to local ONNX and BM25, with the plan recorded in the index and the encoder pinned.
+- Hosted adapters: Voyage 4 Large, Gemini Embedding, Cohere Rerank 4 Pro, zerank-2, Claude (official SDK, `anthropic` extra), OpenAI and Gemini chat; llama-server components for encoder, reranker and chat.
+- `serve`: HTTP API with one index per tenant, bearer keys, admin-only ingest and an audit log. `mcp`: read-only MCP tools for agents (`mcp` extra).
+- `ask --agent`: model-driven search, reading, citation extraction and calculation; malformed steps are reported back to the model instead of failing the answer, and running out of steps answers from gathered evidence.
+- `--domain finance|law|healthcare|trading`: domain packs with answer guidance; healthcare stays local-only unless `RAG_ALLOW_NETWORK=1`.
+- `--as-of` / `search(as_of=...)`: point-in-time retrieval over ISO `published` metadata, excluding undated and later documents. SEC XBRL company-facts JSON ingests as one section per concept.
+- `Answer.detail` reports why generation failed validation.
+
 - Add named presets: `--preset lexical|hybrid|rerank` on the CLI and `rag_pipeline.preset(name)` in Python. A preset is a bundled configuration; `--config` sections override its sections, and nothing is selected unless a preset or provider is named. Measurements are in [testing](docs/TESTING.md).
 - Add relative-score fusion (`fusion="relative"`, min-max normalized BM25 and cosine) and `dense_weight` for both fusion methods. Defaults keep the previous unweighted RRF ranking exactly.
 - Add `rerank_candidates`: the reranker rescores only the top fused chunks and the rest keep their fused order below them.

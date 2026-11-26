@@ -85,7 +85,12 @@ def _bounded_sections(pairs):
     return result
 
 
-def document(path: Path, root: Path, previous: str | None = None) -> Document:
+PARSERS = {"pdfium", "docling"}
+
+
+def document(
+    path: Path, root: Path, previous: str | None = None, parser: str = "pdfium"
+) -> Document:
     # Read one immutable snapshot so the fingerprint always describes parsed bytes.
     if path.is_symlink() or path.stat().st_size > MAX_BYTES:
         raise ValueError(f"Unsafe or oversized source: {path.name}")
@@ -107,7 +112,7 @@ def document(path: Path, root: Path, previous: str | None = None) -> Document:
     if fingerprint == previous:
         return Document(doc_id, fingerprint, meta, [])
     if path.suffix.lower() == ".pdf":
-        sections = pdf_sections(raw)
+        sections = pdf_sections(raw, parser)
     else:
         text = raw.decode("utf-8-sig", errors="strict")
         suffix = path.suffix.lower()
@@ -215,7 +220,13 @@ def _companyfacts_sections(obj):
     return sections
 
 
-def pdf_sections(raw: bytes) -> list[tuple[str, str]]:
+def pdf_sections(raw: bytes, parser: str = "pdfium") -> list[tuple[str, str]]:
+    """Page texts from a disposable worker; "docling" adds Markdown tables and
+    headings (slower, needs the docling extra), "pdfium" is the fast floor."""
+    if parser not in PARSERS:
+        raise ValueError(f"Unknown PDF parser {parser!r}")
+    # Layout models parse about a page a second on CPU; allow long filings.
+    timeout = 180 if parser == "pdfium" else 1800
     with tempfile.TemporaryDirectory(prefix="rag-pdf-") as directory:
         source, output = Path(directory) / "input.pdf", Path(directory) / "output.json"
         source.write_bytes(raw)
@@ -227,13 +238,14 @@ def pdf_sections(raw: bytes) -> list[tuple[str, str]]:
                     "rag_pipeline.pdf_worker",
                     str(source),
                     str(output),
+                    parser,
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=180,
+                timeout=timeout,
             )
         except subprocess.TimeoutExpired as exc:
-            raise ValueError("PDF extraction exceeded 180 seconds") from exc
+            raise ValueError(f"PDF extraction exceeded {timeout} seconds") from exc
         if (
             result.returncode
             or not output.exists()

@@ -18,6 +18,7 @@ from pathlib import Path
 from .sources import (
     FORMATS,
     HEADING_FORMATS,
+    PARSERS,
     Document,
     contextual_spans,
     document,
@@ -54,7 +55,7 @@ def _walk_error(error):
     raise error
 
 
-def _parse(paths, root, existing):
+def _parse(paths, root, existing, parser="pdfium"):
     """Documents in path order, parsed a bounded window ahead on worker threads.
 
     PDF extraction runs in subprocesses, so threads overlap it with encoding
@@ -69,7 +70,7 @@ def _parse(paths, root, existing):
             previous = (
                 existing.get(path.relative_to(root).as_posix()) if existing else None
             )
-            pending.append(pool.submit(document, path, root, previous))
+            pending.append(pool.submit(document, path, root, previous, parser))
             if len(pending) > 2 * workers:
                 yield pending.popleft().result()
         while pending:
@@ -250,8 +251,15 @@ class Index:
         overlap=100,
         contextual=False,
         plan: dict | None = None,
+        parser: str = "pdfium",
     ):
-        """Synchronize ``root`` atomically; ``plan`` records the resolved stages."""
+        """Synchronize ``root`` atomically; ``plan`` records the resolved stages.
+
+        ``parser`` picks the PDF extractor and enters the pipeline signature,
+        so switching parsers rebuilds instead of mixing extractions.
+        """
+        if parser not in PARSERS:
+            raise ValueError(f"Unknown PDF parser {parser!r}")
         if not isinstance(contextual, bool):
             raise ValueError("Contextual must be a boolean")
         root = Path(root).resolve()
@@ -280,7 +288,14 @@ class Index:
         signature = getattr(self.embedder, "signature", "")
         # Heading extraction is versioned separately so plain indexes keep their state.
         pipeline = json.dumps(
-            ["extract-v5", size, overlap, signature, contextual and "headings-v2"]
+            [
+                "extract-v5",
+                size,
+                overlap,
+                signature,
+                contextual and "headings-v2",
+                *([] if parser == "pdfium" else [f"pdf:{parser}"]),
+            ]
         )
         if self.db.in_transaction:
             raise ValueError("Ingest cannot run inside another transaction")
@@ -317,7 +332,9 @@ class Index:
                             "INSERT OR REPLACE INTO state VALUES('dimension',?)",
                             (dimension,),
                         )
-                    for doc in _parse(paths, root, None if rebuild else existing):
+                    for doc in _parse(
+                        paths, root, None if rebuild else existing, parser
+                    ):
                         seen.add(doc.id)
                         if not rebuild and existing.get(doc.id) == doc.fingerprint:
                             continue

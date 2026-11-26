@@ -96,6 +96,13 @@ def main() -> int:
         "ingest", help="Atomically synchronize a complete source directory."
     )
     ingest.add_argument("directory", type=Path)
+    ingest.add_argument(
+        "--parser",
+        choices=["pdfium", "docling"],
+        default="pdfium",
+        help="PDF extractor: pdfium (fast) or docling (tables and headings, "
+        "needs the docling package, about a page a second on CPU).",
+    )
     ingest.add_argument("--size", type=int, default=900)
     ingest.add_argument("--overlap", type=int, default=100)
     ingest.add_argument(
@@ -377,6 +384,7 @@ def main() -> int:
                         overlap=args.overlap,
                         contextual=args.contextual,
                         plan=plan.summary() if plan else None,
+                        parser=args.parser,
                     )
                 elif args.command == "status":
                     result = index.status()
