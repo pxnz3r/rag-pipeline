@@ -101,7 +101,9 @@ def main():
             "options": {
                 "endpoint": args.chat_endpoint,
                 "model": args.chat_model,
-                "max_tokens": 1500,
+                # Valid cited answers ran 140-550 tokens; runaway JSON from a
+                # small model fills any cap, so fail at 800 instead of 1500.
+                "max_tokens": 800,
                 "timeout": 600,
             },
         },
