@@ -269,7 +269,7 @@ def _answer_evidence(
             raw = generate(system, json.dumps(request))
             if not isinstance(raw, str) or len(raw) > 50000:
                 raise _Rejected("Oversized generation response")
-            claims = _validate_claims(_first_json_object(raw), hits)
+            claims = _validate_claims(_first_json_object(raw), hits, question)
         except _Rejected as rejected:
             error = rejected
             request["previous_attempt_rejected"] = (
@@ -288,8 +288,25 @@ def _answer_evidence(
     return Answer("generation_failed", "", hits, detail=str(error))
 
 
-def _validate_claims(result, hits):
-    """Claims whose quotes, numbers and units are all in the cited evidence."""
+def _validate_claims(result, hits, question=""):
+    """Claims whose quotes, numbers and units are all in the cited evidence.
+
+    A claim may also restate numbers and units from the question and from
+    the cited documents' metadata: "3M's FY2018 capital expenditure" names
+    3 and 2018 without either being a new figure.
+    """
+    # From the question, only years and identifier numbers ("Q2", "FY2018",
+    # "10-K"): an amount the question asks about must still be quoted, or
+    # "Did revenue exceed $500M?" could be "answered" with $500M. A trailing
+    # letter is ambiguous ("3M" the company, "3M" three million), so names
+    # like 3M are allowed only through the cited document's metadata.
+    asked_numbers = {
+        Decimal(_number_spelling(m.group()))
+        for m in CLAIM_NUMBER.finditer(question)
+        if re.fullmatch(r"(19|20)\d\d", m.group())
+        or re.match(r"[A-Za-z]", question[max(0, m.start() - 1) : m.start()])
+        or re.match(r"-[A-Za-z]", question[m.end() : m.end() + 2])
+    }
     if (
         not isinstance(result, dict)
         or set(result) != {"claims"}
@@ -324,8 +341,16 @@ def _validate_claims(result, hits):
                 raise _Rejected("Unverifiable citation")
             quotes.append(quote)
         quoted = " ".join(quotes)
-        if not _numbers(claim["text"]) <= _quoted_numbers(quoted):
+        described = " ".join(
+            " ".join(str(v) for v in sources[c["source_id"]].metadata.values())
+            for c in claim["evidence"]
+        )
+        allowed = _quoted_numbers(quoted) | asked_numbers | _numbers(described)
+        if not _numbers(claim["text"]) <= allowed:
             raise _Rejected("Unsupported numeric claim")
+        # Units and scales stay strict: they must be quoted (a table header
+        # counts), never taken from the question, which could say "millions"
+        # over a table in thousands.
         if not _units(claim["text"]) <= _units(quoted):
             raise _Rejected("Unsupported currency, scale or measurement unit")
         quantities = _quantities(quoted)

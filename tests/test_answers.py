@@ -47,6 +47,34 @@ def test_source_order_keeps_evidence_budget_and_numerical_row_order(tmp_path):
         assert sum(len(h.text) for h in ordered.sources) <= 300
 
 
+def test_claims_may_restate_years_identifiers_and_metadata_but_not_asked_amounts():
+    quote = "Revenue USD millions: 2024=125.0; 2023=100.0."
+
+    def reply(text):
+        return lambda *_: json.dumps(
+            {
+                "claims": [
+                    {"text": text, "evidence": [{"source_id": HIT.id, "quote": quote}]}
+                ]
+            }
+        )
+
+    # A year and a Q-number from the question, and the company metadata "A".
+    ok = answer(
+        Retriever(),
+        "What was FY2024 Q4 revenue?",
+        generate=reply("FY2024 Q4 revenue was USD 125.0 millions."),
+    )
+    assert ok.status == "cited", ok.detail
+    # An amount the question asks about is not evidence for itself.
+    asked = answer(
+        Retriever(),
+        "Did revenue exceed USD 500 millions?",
+        generate=reply("Revenue exceeded USD 500 millions."),
+    )
+    assert asked.status == "generation_failed"
+
+
 def test_quotes_match_across_pdf_line_breaks_but_not_inside_numbers():
     from rag_pipeline.answers import _quote_spans
 
