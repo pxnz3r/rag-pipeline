@@ -38,6 +38,10 @@ With `--postgres DSN`, tenants share one Postgres database (pgvector required). 
 
 `rag-pipeline doctor` shows the hardware, keys and settings a process sees and the stage each resolves to; compare it across machines when results differ.
 
+## Local models on a small machine
+
+llama-server keeps up to 8 GiB of past prompts in host RAM by default (`--cache-ram 8192`). On a 16 GiB machine that cache grew a 4B Q4 model to 12 GB resident, and the kernel's out-of-memory killer stopped it during a long run. Cap the cache to fit, for example `llama-server -m model.gguf -c 16384 --cache-ram 1024 --jinja`. Keep one slot (`-np 1`) and send enrichment calls one at a time (`ChatEnricher(workers=1)`): a section's chunks share the prompt prefix, so llama-server reuses it instead of reprocessing the excerpt for every chunk.
+
 ## Automation
 
 Dependabot pip/Actions version PR limits remain zero. CI has only read permissions and cannot write branches. Automatic security updates are a separate GitHub setting: the integration previously returned HTTP 403, so it remains unverified. If those branches recur, the owner can change **Settings → Advanced Security → Dependabot → security updates**. Do not disable CI or advisories to stop version branches. Upgrade dependencies manually, audit resolved extras, run tests and merge only after `test-and-audit` passes.
