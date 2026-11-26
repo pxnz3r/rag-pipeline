@@ -82,6 +82,9 @@ def main():
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--max-steps", type=int, default=8)
     parser.add_argument("--judge", action="store_true")
+    parser.add_argument(
+        "--log-raw", type=Path, help="JSON lines of prompts and replies"
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -109,6 +112,16 @@ def main():
         },
         "generation",
     )
+    if args.log_raw:
+        # Keep every prompt and raw reply, to see why an answer was rejected.
+        model_call = chat
+
+        def chat(system, user):
+            reply = model_call(system, user)
+            with args.log_raw.open("a") as stream:
+                stream.write(json.dumps({"user": user[:4000], "reply": reply}) + "\n")
+            return reply
+
     encoder = settings.get("embedding", {}).get("factory", "none").split(":")[-1]
     manifest = json.loads((args.data / "financebench.json").read_text())
     questions = manifest["questions"][: args.limit or None]

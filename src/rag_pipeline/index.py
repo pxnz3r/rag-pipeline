@@ -269,45 +269,11 @@ class Index:
         ``enrich.ChatEnricher``) writes chunk context; both enter the pipeline
         signature, so switching either rebuilds instead of mixing formats.
         """
-        if parser not in PARSERS:
-            raise ValueError(f"Unknown PDF parser {parser!r}")
-        if not isinstance(contextual, bool):
-            raise ValueError("Contextual must be a boolean")
         root = Path(root).resolve()
-        if not root.is_dir():
-            raise ValueError(
-                "Source directory must exist; refusing to prune an absent corpus"
-            )
-        # Validate before a no-op ingest as well.
-        list(spans("", size, overlap))
-        paths = []
-        for directory, subdirs, names in os.walk(
-            root, onerror=_walk_error, followlinks=False
-        ):
-            if any((Path(directory) / name).is_symlink() for name in subdirs):
-                raise ValueError("Symlinked source directories are not supported")
-            for name in names:
-                path = Path(directory) / name
-                if path.suffix.lower() not in FORMATS or name.endswith(".meta.json"):
-                    continue
-                if path.is_symlink() or not path.is_file():
-                    raise ValueError(
-                        "Symlinked or unreadable source files are not supported"
-                    )
-                paths.append(path)
-        paths.sort()
+        paths = source_paths(root, size, overlap, contextual, parser)
         signature = getattr(self.embedder, "signature", "")
-        # Heading extraction is versioned separately so plain indexes keep their state.
-        pipeline = json.dumps(
-            [
-                "extract-v5",
-                size,
-                overlap,
-                signature,
-                contextual and "headings-v2",
-                *([] if parser == "pdfium" else [f"pdf:{parser}"]),
-                *([] if enricher is None else [f"enrich:{enricher.signature}"]),
-            ]
+        pipeline = pipeline_signature(
+            size, overlap, signature, contextual, parser, enricher
         )
         if self.db.in_transaction:
             raise ValueError("Ingest cannot run inside another transaction")
@@ -330,40 +296,20 @@ class Index:
                 if self._state("embedding") == signature
                 else None
             )
-        # Parse and infer into a bounded on-disk stage, with no live writer lock.
-        # Only changed documents are staged; unchanged indexes are not cloned.
-        cache = None
-        if enricher is not None:
-            from .enrich import Cache
-
-            cache = Cache(self.path.with_name(self.path.name + ".enrich-cache"))
-        with (
-            tempfile.TemporaryDirectory(prefix="rag-ingest-") as directory,
-            _closing(cache),
-        ):
-            staged_path = Path(directory) / "stage.sqlite"
-            with Index(staged_path, self.embedder, vector_cache_bytes=0) as staged:
-                seen, changed, batch = set(), 0, []
-                with staged._transaction(write=True):
-                    if contextual:
-                        staged._heading_schema()
-                    if dimension:
-                        staged.db.execute(
-                            "INSERT OR REPLACE INTO state VALUES('dimension',?)",
-                            (dimension,),
-                        )
-                    for doc in _parse(
-                        paths, root, None if rebuild else existing, parser
-                    ):
-                        seen.add(doc.id)
-                        if not rebuild and existing.get(doc.id) == doc.fingerprint:
-                            continue
-                        staged._replace(
-                            doc, size, overlap, contextual, batch, enricher, cache
-                        )
-                        changed += 1
-                    staged._insert_chunks(batch)
-                staged_dimension = staged._state("dimension")
+        with stage_documents(
+            paths,
+            root,
+            self.embedder,
+            existing=existing,
+            rebuild=rebuild,
+            dimension=dimension,
+            size=size,
+            overlap=overlap,
+            contextual=contextual,
+            parser=parser,
+            enricher=enricher,
+            cache_path=self.path.with_name(self.path.name + ".enrich-cache"),
+        ) as (staged_path, seen, changed, staged_dimension):
             removed = existing.keys() - seen
             self.db.execute("ATTACH DATABASE ? AS ingest_stage", (str(staged_path),))
             try:
@@ -855,6 +801,109 @@ class Index:
                 diversify=diversify,
                 distinct_documents=distinct_documents,
             )
+
+
+def source_paths(root, size, overlap, contextual, parser):
+    """Every supported file under ``root``, sorted; options validated first.
+
+    A missing root fails instead of pruning the corpus, and symlinks fail
+    instead of escaping the source tree.
+    """
+    if parser not in PARSERS:
+        raise ValueError(f"Unknown PDF parser {parser!r}")
+    if not isinstance(contextual, bool):
+        raise ValueError("Contextual must be a boolean")
+    if not root.is_dir():
+        raise ValueError(
+            "Source directory must exist; refusing to prune an absent corpus"
+        )
+    # Validate before a no-op ingest as well.
+    list(spans("", size, overlap))
+    paths = []
+    for directory, subdirs, names in os.walk(
+        root, onerror=_walk_error, followlinks=False
+    ):
+        if any((Path(directory) / name).is_symlink() for name in subdirs):
+            raise ValueError("Symlinked source directories are not supported")
+        for name in names:
+            path = Path(directory) / name
+            if path.suffix.lower() not in FORMATS or name.endswith(".meta.json"):
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise ValueError(
+                    "Symlinked or unreadable source files are not supported"
+                )
+            paths.append(path)
+    return sorted(paths)
+
+
+def pipeline_signature(size, overlap, encoder, contextual, parser, enricher):
+    """Everything that shapes stored chunks; a change rebuilds the index."""
+    # Heading extraction is versioned separately so plain indexes keep their state.
+    return json.dumps(
+        [
+            "extract-v5",
+            size,
+            overlap,
+            encoder,
+            contextual and "headings-v2",
+            *([] if parser == "pdfium" else [f"pdf:{parser}"]),
+            *([] if enricher is None else [f"enrich:{enricher.signature}"]),
+        ]
+    )
+
+
+@contextmanager
+def stage_documents(
+    paths,
+    root,
+    embedder,
+    *,
+    existing,
+    rebuild,
+    dimension,
+    size,
+    overlap,
+    contextual,
+    parser,
+    enricher,
+    cache_path,
+):
+    """Parse, chunk, enrich and encode changed documents into a temporary
+    SQLite stage, with no lock on the live store. Yields (stage path, ids
+    seen, documents changed, vector dimension); any store publishes from it.
+    """
+    cache = None
+    if enricher is not None:
+        from .enrich import Cache
+
+        cache = Cache(cache_path)
+    with (
+        tempfile.TemporaryDirectory(prefix="rag-ingest-") as directory,
+        _closing(cache),
+    ):
+        staged_path = Path(directory) / "stage.sqlite"
+        with Index(staged_path, embedder, vector_cache_bytes=0) as staged:
+            seen, changed, batch = set(), 0, []
+            with staged._transaction(write=True):
+                if contextual:
+                    staged._heading_schema()
+                if dimension:
+                    staged.db.execute(
+                        "INSERT OR REPLACE INTO state VALUES('dimension',?)",
+                        (dimension,),
+                    )
+                for doc in _parse(paths, root, None if rebuild else existing, parser):
+                    seen.add(doc.id)
+                    if not rebuild and existing.get(doc.id) == doc.fingerprint:
+                        continue
+                    staged._replace(
+                        doc, size, overlap, contextual, batch, enricher, cache
+                    )
+                    changed += 1
+                staged._insert_chunks(batch)
+            staged_dimension = staged._state("dimension")
+        yield staged_path, seen, changed, staged_dimension
 
 
 def check_search(
