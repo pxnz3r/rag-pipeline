@@ -173,10 +173,10 @@ def pdf_sections(raw: bytes) -> list[tuple[str, str]]:
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=45,
+                timeout=180,
             )
         except subprocess.TimeoutExpired as exc:
-            raise ValueError("PDF extraction exceeded 45 seconds") from exc
+            raise ValueError("PDF extraction exceeded 180 seconds") from exc
         if (
             result.returncode
             or not output.exists()

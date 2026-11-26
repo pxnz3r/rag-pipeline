@@ -259,7 +259,7 @@ class Index:
         signature = getattr(self.embedder, "signature", "")
         # Heading extraction is versioned separately so plain indexes keep their state.
         pipeline = json.dumps(
-            ["extract-v4", size, overlap, signature, contextual and "headings-v2"]
+            ["extract-v5", size, overlap, signature, contextual and "headings-v2"]
         )
         if self.db.in_transaction:
             raise ValueError("Ingest cannot run inside another transaction")

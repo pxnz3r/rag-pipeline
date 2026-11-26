@@ -70,14 +70,20 @@ def test_pdf_worker_real_parse_and_failures(tmp_path):
     assert extracted.sections[0][0] == "page 2" and "125.0" in extracted.sections[0][1]
     with pytest.raises(ValueError, match="failed"):
         pdf_sections(b"not a pdf")
+    # Owner-password encryption (print/copy restrictions) is how most filings
+    # ship; it must open without a password, like a PDF viewer does.
+    locked = tmp_path / "locked.pdf"
+    writer.encrypt(user_password="", owner_password="owner", algorithm="AES-256")
+    writer.write(locked)
+    assert "125.0" in document(locked, tmp_path).sections[0][1]
 
 
 def test_worker_timeout_and_bounded_overlap(monkeypatch):
     def timeout(*args, **kwargs):
-        raise subprocess.TimeoutExpired(args[0], 45)
+        raise subprocess.TimeoutExpired(args[0], 180)
 
     monkeypatch.setattr(subprocess, "run", timeout)
-    with pytest.raises(ValueError, match="45 seconds"):
+    with pytest.raises(ValueError, match="180 seconds"):
         pdf_sections(b"pdf")
     text = "clause exception; important number 125.0.\n" * 100
     offsets = list(spans(text, 180, 30))
