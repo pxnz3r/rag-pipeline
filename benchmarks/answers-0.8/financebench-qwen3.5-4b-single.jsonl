@@ -1,0 +1,1 @@
+{"id": "financebench_id_03029", "route": "single", "preset": "hybrid", "model": "qwen3.5-4b", "status": "generation_failed", "detail": "Unsupported numeric claim", "gold": "$1577.00", "response": "", "numeric_correct": false, "judged_correct": null, "cited_pages": ["page 39", "page 44", "page 46", "page 49", "page 83"], "gold_pages": [60], "seconds": 78.6, "trace": null}

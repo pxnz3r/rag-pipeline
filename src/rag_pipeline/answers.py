@@ -68,6 +68,23 @@ def _numbers(text):
     return {Decimal(_number_spelling(n)) for n in CLAIM_NUMBER.findall(text)}
 
 
+def _quoted_numbers(text):
+    """Numbers a claim may state from a quote.
+
+    Filings print outflows and losses in accounting parentheses: "(1,577)"
+    under "Purchases of PP&E" is reported as capital expenditure of 1,577.
+    A parenthesized quote number therefore also supports its absolute value;
+    an explicit minus sign must match exactly.
+    """
+    allowed = set()
+    for token in CLAIM_NUMBER.findall(text):
+        value = Decimal(_number_spelling(token))
+        allowed.add(value)
+        if token.strip().startswith("("):
+            allowed.add(abs(value))
+    return allowed
+
+
 def _units(text):
     units = {
         UNIT_ALIASES.get(
@@ -230,68 +247,82 @@ def _answer_evidence(
         raise ValueError("Domain guidance must be a string under 2000 characters")
     if guidance:
         system += " Domain guidance: " + guidance
-    try:
-        payload = json.dumps(
-            {"question": question, "evidence": [h.to_dict() for h in hits]}
-        )
-        raw = generate(system, payload)
-        if not isinstance(raw, str) or len(raw) > 50000:
-            raise _Rejected("Oversized generation response")
-        result = _first_json_object(raw)
-        if (
-            not isinstance(result, dict)
-            or set(result) != {"claims"}
-            or not isinstance(result["claims"], list)
-        ):
-            raise _Rejected("Invalid response schema")
-        if not result["claims"]:
+    request = {"question": question, "evidence": [h.to_dict() for h in hits]}
+    error = None
+    # One repair turn: the model sees exactly why its claims were rejected
+    # (a missing unit quote, a recomputed number) and can cite correctly.
+    for _ in range(2):
+        try:
+            raw = generate(system, json.dumps(request))
+            if not isinstance(raw, str) or len(raw) > 50000:
+                raise _Rejected("Oversized generation response")
+            claims = _validate_claims(_first_json_object(raw), hits)
+        except _Rejected as rejected:
+            error = rejected
+            request["previous_attempt_rejected"] = (
+                f"{rejected}. Every number and unit in a claim must appear in that "
+                "claim's verbatim quotes; quote the table header or line that "
+                "states the unit or scale as an extra evidence item; state only "
+                "numbers written in the evidence."
+            )
+            continue
+        except Exception:
+            # Do not expose remote prompts, credentials, or server response bodies.
+            return Answer("generation_failed", "", hits, detail="generation error")
+        if not claims:
             return Answer("abstained", "", hits)
-        if len(result["claims"]) > 20:
-            raise _Rejected("Too many claims")
-        sources = {h.id: h for h in hits}
-        for claim in result["claims"]:
-            if (
-                not isinstance(claim, dict)
-                or set(claim) != {"text", "evidence"}
-                or not isinstance(claim["text"], str)
-                or not 1 <= len(claim["text"]) <= 2000
-                or not isinstance(claim["evidence"], list)
-                or not 1 <= len(claim["evidence"]) <= 10
-            ):
-                raise _Rejected("Invalid claim")
-            quotes = []
-            for cite in claim["evidence"]:
-                if not isinstance(cite, dict) or set(cite) != {"source_id", "quote"}:
-                    raise _Rejected("Invalid citation")
-                source = sources.get(cite["source_id"])
-                quote = cite["quote"]
-                if (
-                    not source
-                    or not isinstance(quote, str)
-                    or not quote.strip()
-                    or not _grounded_quote(source, quote)
-                ):
-                    raise _Rejected("Unverifiable citation")
-                quotes.append(quote)
-            quoted = " ".join(quotes)
-            if not _numbers(claim["text"]) <= _numbers(quoted):
-                raise _Rejected("Unsupported numeric claim")
-            if not _units(claim["text"]) <= _units(quoted):
-                raise _Rejected("Unsupported currency, scale or measurement unit")
-            quantities = _quantities(quoted)
-            bound_numbers = {number for number, _ in quantities}
-            if any(
-                number in bound_numbers and (number, unit) not in quantities
-                for number, unit in _quantities(claim["text"])
-            ):
-                raise _Rejected("Number/unit binding is absent from quote")
-        claims = result["claims"]
         return Answer("cited", "\n".join(c["text"] for c in claims), hits, claims)
-    except _Rejected as error:
-        return Answer("generation_failed", "", hits, detail=str(error))
-    except Exception:
-        # Do not expose remote prompts, credentials, or server response bodies.
-        return Answer("generation_failed", "", hits, detail="generation error")
+    return Answer("generation_failed", "", hits, detail=str(error))
+
+
+def _validate_claims(result, hits):
+    """Claims whose quotes, numbers and units are all in the cited evidence."""
+    if (
+        not isinstance(result, dict)
+        or set(result) != {"claims"}
+        or not isinstance(result["claims"], list)
+    ):
+        raise _Rejected("Invalid response schema")
+    if len(result["claims"]) > 20:
+        raise _Rejected("Too many claims")
+    sources = {h.id: h for h in hits}
+    for claim in result["claims"]:
+        if (
+            not isinstance(claim, dict)
+            or set(claim) != {"text", "evidence"}
+            or not isinstance(claim["text"], str)
+            or not 1 <= len(claim["text"]) <= 2000
+            or not isinstance(claim["evidence"], list)
+            or not 1 <= len(claim["evidence"]) <= 10
+        ):
+            raise _Rejected("Invalid claim")
+        quotes = []
+        for cite in claim["evidence"]:
+            if not isinstance(cite, dict) or set(cite) != {"source_id", "quote"}:
+                raise _Rejected("Invalid citation")
+            source = sources.get(cite["source_id"])
+            quote = cite["quote"]
+            if (
+                not source
+                or not isinstance(quote, str)
+                or not quote.strip()
+                or not _grounded_quote(source, quote)
+            ):
+                raise _Rejected("Unverifiable citation")
+            quotes.append(quote)
+        quoted = " ".join(quotes)
+        if not _numbers(claim["text"]) <= _quoted_numbers(quoted):
+            raise _Rejected("Unsupported numeric claim")
+        if not _units(claim["text"]) <= _units(quoted):
+            raise _Rejected("Unsupported currency, scale or measurement unit")
+        quantities = _quantities(quoted)
+        bound_numbers = {number for number, _ in quantities}
+        if any(
+            number in bound_numbers and (number, unit) not in quantities
+            for number, unit in _quantities(claim["text"])
+        ):
+            raise _Rejected("Number/unit binding is absent from quote")
+    return result["claims"]
 
 
 class _Rejected(ValueError):

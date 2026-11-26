@@ -47,6 +47,62 @@ def test_source_order_keeps_evidence_budget_and_numerical_row_order(tmp_path):
         assert sum(len(h.text) for h in ordered.sources) <= 300
 
 
+def test_accounting_parentheses_and_one_repair_turn():
+    quote = "Loss USD millions: (12.50)."
+    good = {
+        "claims": [
+            {
+                "text": "The loss was USD 12.50 millions.",
+                "evidence": [{"source_id": HIT.id, "quote": quote}],
+            }
+        ]
+    }
+    bad = {
+        "claims": [
+            {
+                "text": "The loss was USD 13 millions.",
+                "evidence": [{"source_id": HIT.id, "quote": quote}],
+            }
+        ]
+    }
+    requests = []
+
+    def generate(system, payload):
+        requests.append(json.loads(payload))
+        return json.dumps(bad if len(requests) == 1 else good)
+
+    result = answer(Retriever(), "Loss?", generate=generate)
+    assert result.status == "cited" and len(requests) == 2
+    assert "Unsupported numeric claim" in requests[1]["previous_attempt_rejected"]
+    # Two rejections end in a failure that says why.
+    failed = answer(Retriever(), "Loss?", generate=lambda *_: json.dumps(bad))
+    assert failed.status == "generation_failed"
+    assert failed.detail == "Unsupported numeric claim"
+    # An explicit minus sign must match exactly; only parentheses imply sign.
+    minus = Hit(**{**HIT.to_dict(), "text": "Loss USD millions: -12.50."})
+
+    class MinusRetriever:
+        def search(self, *args, **kwargs):
+            return [minus]
+
+    wrong_sign = {
+        "claims": [
+            {
+                "text": "The loss was USD 12.50 millions.",
+                "evidence": [
+                    {"source_id": HIT.id, "quote": "Loss USD millions: -12.50."}
+                ],
+            }
+        ]
+    }
+    assert (
+        answer(
+            MinusRetriever(), "Loss?", generate=lambda *_: json.dumps(wrong_sign)
+        ).status
+        == "generation_failed"
+    )
+
+
 def test_offline_evidence_and_valid_cited_response():
     result = answer(Retriever(), "Revenue?")
     assert result.status == "evidence" and HIT.text in result.answer
