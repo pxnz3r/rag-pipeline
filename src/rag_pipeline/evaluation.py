@@ -65,6 +65,7 @@ def evaluate(
     split=None,
     reranker=None,
     contextual=False,
+    enricher=None,
     vector_cache_bytes=512 * 1024 * 1024,
     cache_reranker=False,
     distinct_documents=False,
@@ -128,7 +129,7 @@ def evaluate(
             vector_cache_bytes=vector_cache_bytes,
         ) as index:
             started = time.perf_counter()
-            stats = index.ingest(corpus, contextual=contextual)
+            stats = index.ingest(corpus, contextual=contextual, enricher=enricher)
             index_seconds = time.perf_counter() - started
             reranker_index_seconds = 0.0
             token_cache = None
@@ -190,6 +191,7 @@ def evaluate(
                 if mode == "hybrid" and embedder is None
                 else mode,
                 "contextual": contextual,
+                "enrichment": getattr(enricher, "signature", None),
                 "distinct_documents": distinct_documents,
                 "search_options": options,
                 "vector_cache_bytes": vector_cache_bytes,

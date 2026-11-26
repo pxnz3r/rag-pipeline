@@ -12,7 +12,7 @@
 - `Answer.detail` reports why generation failed validation.
 - Cited-answer validation, tuned on real FinanceBench answers (0 of 10 accepted before): quotes match across PDF line breaks while numbers must stay whole; a parenthesized quote number "(1,577)" supports its absolute value; claims may restate years and identifier numbers from the question and numbers in the cited documents' metadata (never an amount the question asks about); units may come from anywhere in the cited evidence window (a table's "(Millions)" header), never from the question; a rejected answer gets one repair turn with the reason; at most 5 one-sentence claims.
 - `pg_store.PgIndex` and `serve --postgres DSN`: a Postgres store with FORCE ROW LEVEL SECURITY per tenant, BM25 computed in SQL over a postings table (SciFact NDCG@10 0.687 against FTS5's 0.682), pgvector HNSW, and the same staging, fusion and windows as the SQLite store (`postgres` extra).
-- `ingest --enrich`: an LLM context sentence per chunk for search and ranking, never cited, cached by content hash.
+- `ingest --enrich`: an LLM context sentence per chunk for search and ranking, never cited, cached by content hash. `evaluate(enricher=...)` and `scripts/benchmark_enrich.py` measure it on a judged dataset.
 
 - Add named presets: `--preset lexical|hybrid|rerank` on the CLI and `rag_pipeline.preset(name)` in Python. A preset is a bundled configuration; `--config` sections override its sections, and nothing is selected unless a preset or provider is named. Measurements are in [testing](docs/TESTING.md).
 - Add relative-score fusion (`fusion="relative"`, min-max normalized BM25 and cosine) and `dense_weight` for both fusion methods. Defaults keep the previous unweighted RRF ranking exactly.
