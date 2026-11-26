@@ -104,6 +104,7 @@ class Index:
         # 64 MiB held only ~20k 768-d vectors; past it each dense query
         # streamed from SQLite (332 ms vs 32 ms on 82k FiQA chunks).
         vector_cache_bytes=512 * 1024 * 1024,
+        shared_threads=False,
     ):
         if (
             not isinstance(vector_cache_bytes, int)
@@ -121,7 +122,14 @@ class Index:
         self.path = Path(path)
         existed = self.path.exists()
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
+        # shared_threads lets a caller that serializes access (the server holds
+        # a lock per index) use this connection from several threads.
+        self.db = sqlite3.connect(
+            self.path,
+            timeout=30,
+            isolation_level=None,
+            check_same_thread=not shared_threads,
+        )
         self.db.row_factory = sqlite3.Row
         self.embedder = embedder
         self.reranker = reranker

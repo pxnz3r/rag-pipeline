@@ -145,6 +145,16 @@ def main() -> int:
         "doctor",
         help="Print detected capabilities and the pipeline --profile resolves to.",
     )
+    serve_parser = sub.add_parser(
+        "serve",
+        help="HTTP API with warm models; tenants and keys from RAG_API_KEYS.",
+    )
+    serve_parser.add_argument(
+        "--root", type=Path, default=Path("processed_data/tenants")
+    )
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8080)
+    sub.add_parser("mcp", help="MCP server over stdio for agents (needs [mcp] extra).")
     sub.add_parser(
         "prepare-reranker",
         help="Explicitly encode passage tokens once for ColBERT candidate reranking.",
@@ -238,7 +248,16 @@ def main() -> int:
         if (
             (args.rerank or args.reranker or "reranker" in config)
             and args.command
-            in {"search", "ask", "calculate", "reason", "evaluate", "prepare-reranker"}
+            in {
+                "search",
+                "ask",
+                "calculate",
+                "reason",
+                "evaluate",
+                "prepare-reranker",
+                "serve",
+                "mcp",
+            }
             or args.command == "prepare-reranker"
         ):
             spec = (
@@ -253,6 +272,33 @@ def main() -> int:
             if "generation" not in config:
                 raise ValueError("Generation requires an explicit provider in --config")
             generator = provider(config["generation"], "generation")
+        elif args.command == "serve" and "generation" in config:
+            generator = provider(config["generation"], "generation")
+        if args.command == "serve":
+            from .server import Engine, parse_keys, serve
+
+            engine = Engine(
+                args.root,
+                parse_keys(os.environ.get("RAG_API_KEYS", "")),
+                embedder=embedder,
+                reranker=reranker,
+                generator=generator,
+                search={k: v for k, v in search.items() if k != "k"},
+                plan=plan.summary() if plan else None,
+            )
+            server = serve(engine, args.host, args.port)
+            print(
+                json.dumps({"serving": f"http://{args.host}:{server.server_port}"}),
+                flush=True,
+            )
+            server.serve_forever()
+            return 0
+        if args.command == "mcp":
+            from .mcp_server import build
+
+            with Index(args.index, embedder, reranker, shared_threads=True) as index:
+                build(index, {k: v for k, v in search.items() if k != "k"}).run("stdio")
+            return 0
         if (
             args.command in {"search", "ask", "calculate", "reason", "evaluate"}
             and args.mode in {"dense", "hybrid"}
