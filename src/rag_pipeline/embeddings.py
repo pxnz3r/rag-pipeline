@@ -456,6 +456,33 @@ class BGESmall(ONNXEmbedding):
         )
 
 
+class EmbeddingGemma(ONNXEmbedding):
+    """Google EmbeddingGemma-300M, int8 ONNX export, 768d, 512 tokens here.
+
+    Measured here as the strongest local encoder: hybrid NDCG@10 SciFact
+    0.79 and NFCorpus 0.39 against arctic-embed-m's 0.74 and 0.37. The
+    weights are under Google's Gemma terms of use, not an open-source
+    license; check them before redistributing. Queries and passages take
+    the model's retrieval prompts.
+    """
+
+    def __init__(self, threads=None, providers=None):
+        super().__init__(
+            model="onnx-community/embeddinggemma-300m-ONNX",
+            revision="5090578d9565bb06545b4552f76e6bc2c93e4a66",
+            weights="onnx/model_quantized.onnx",
+            dimensions=768,
+            length=512,
+            pooling="pooled",
+            output_index=1,
+            query_prefix="task: search result | query: ",
+            passage_prefix="title: none | text: ",
+            batch_size=4,
+            threads=threads,
+            providers=providers,
+        )
+
+
 class ArcticM(ONNXEmbedding):
     """Snowflake arctic-embed-m-v1.5, int8 ONNX export, CLS pooling, 512 tokens.
 
