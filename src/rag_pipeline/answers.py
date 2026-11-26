@@ -348,10 +348,12 @@ def _validate_claims(result, hits, question=""):
         allowed = _quoted_numbers(quoted) | asked_numbers | _numbers(described)
         if not _numbers(claim["text"]) <= allowed:
             raise _Rejected("Unsupported numeric claim")
-        # Units and scales stay strict: they must be quoted (a table header
-        # counts), never taken from the question, which could say "millions"
-        # over a table in thousands.
-        if not _units(claim["text"]) <= _units(quoted):
+        # Units and scales must appear in the cited evidence: the quotes or
+        # the rest of the cited window, where a table's "(Millions)" header
+        # sits apart from its rows. Never from the question, which could say
+        # "millions" over a table in thousands.
+        window = " ".join(sources[c["source_id"]].text for c in claim["evidence"])
+        if not _units(claim["text"]) <= _units(quoted) | _units(window):
             raise _Rejected("Unsupported currency, scale or measurement unit")
         quantities = _quantities(quoted)
         bound_numbers = {number for number, _ in quantities}
