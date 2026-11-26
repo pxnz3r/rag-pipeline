@@ -9,7 +9,7 @@ rag-pipeline --preset rerank ask "What was 2024 revenue?" --filter company=Acme
 ```
  `--embedding module:factory` and `--reranker module:factory` accept installed adapters without a fixed name list. `--dense`/`--rerank` require a supplied provider; chat generation requires a configuration and `--generate`. Place global flags before the command. See [configuration and migration](CONFIGURATION.md).
 
-`prepare-reranker` prepares the chosen token adapter's passage vectors; `evaluate --cache-reranker` reports that cost separately. `--vector-cache-mib 64` bounds the in-memory dense matrix that unfiltered and filtered queries share; `0` streams. Server embedding flags accept an explicit endpoint, model and immutable revision, with `--query-template`/`--passage-template`; plain text is the default. Network adapters send text to your chosen server. Local ONNX adapters do not send inference text to a model server.
+`prepare-reranker` prepares the chosen token adapter's passage vectors; `evaluate --cache-reranker` reports that cost separately. `--vector-cache-mib 512` bounds the in-memory dense matrix that unfiltered and filtered queries share; `0` streams. Server embedding flags accept an explicit endpoint, model and immutable revision, with `--query-template`/`--passage-template`; plain text is the default. Network adapters send text to your chosen server. Local ONNX adapters do not send inference text to a model server.
 
 | Command | Behavior |
 | --- | --- |

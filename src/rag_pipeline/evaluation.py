@@ -65,7 +65,7 @@ def evaluate(
     split=None,
     reranker=None,
     contextual=False,
-    vector_cache_bytes=64 * 1024 * 1024,
+    vector_cache_bytes=512 * 1024 * 1024,
     cache_reranker=False,
     distinct_documents=False,
     search_options=None,

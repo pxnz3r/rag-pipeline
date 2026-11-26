@@ -101,7 +101,9 @@ class Index:
         embedder=None,
         reranker=None,
         *,
-        vector_cache_bytes=64 * 1024 * 1024,
+        # 64 MiB held only ~20k 768-d vectors; past it each dense query
+        # streamed from SQLite (332 ms vs 32 ms on 82k FiQA chunks).
+        vector_cache_bytes=512 * 1024 * 1024,
     ):
         if (
             not isinstance(vector_cache_bytes, int)
@@ -516,13 +518,27 @@ class Index:
         """(chunk id, cosine) pairs, best first; ties break on id."""
         import numpy as np
 
-        def top(scores, ids):
+        def top(matrix, ids):
+            # BLAS finds the neighbourhood (7x faster than einsum on 82k x 768),
+            # but its rounding depends on the matrix shape. Rescoring only that
+            # neighbourhood with row-wise einsum makes every cosine bitwise
+            # identical on cached, filtered and streamed paths, so ties never
+            # depend on the path. The slack is far above float32 disagreement
+            # (under 1e-7 measured for unit vectors), so no true winner is lost.
+            slack = 1e-3
+            rough = matrix @ query
+            keep = np.flatnonzero(rough >= min_cosine - slack)
+            if len(keep) > candidates:
+                cutoff = np.partition(rough[keep], -candidates)[-candidates]
+                keep = keep[rough[keep] >= cutoff - 2 * slack]
+            scores = np.einsum("ij,j->i", matrix[keep], query)
             positions = np.flatnonzero(scores >= min_cosine)
             if len(positions) > candidates:
                 cutoff = np.partition(scores[positions], -candidates)[-candidates]
                 positions = positions[scores[positions] >= cutoff]
             return heapq.nsmallest(
-                candidates, [(-float(scores[i]), ids[i]) for i in positions]
+                candidates,
+                [(-float(scores[i]), ids[keep[i]]) for i in positions],
             )
 
         def unpack(blobs):
@@ -537,11 +553,6 @@ class Index:
                 raise ValueError("Corrupt stored vectors")
             return block
 
-        def scores(matrix):
-            # Row-wise einsum keeps each cosine bitwise identical across cached,
-            # filtered and streamed blocks, so cutoff ties never depend on the path.
-            return np.einsum("ij,j->i", matrix, query)
-
         scope = (
             "FROM chunks c JOIN sections s ON s.id=c.section "
             "JOIN documents d ON d.id=s.document WHERE c.vector IS NOT NULL" + clause
@@ -550,7 +561,7 @@ class Index:
         if cached is not None:
             matrix, ids, rowids = cached
             if not clause:
-                return [(c, -s) for s, c in top(scores(matrix), ids)]
+                return [(c, -s) for s, c in top(matrix, ids)]
             # Scope selects rows of the cached matrix instead of streaming blobs.
             allowed = np.fromiter(
                 (r[0] for r in self.db.execute("SELECT c.rowid " + scope, args)),
@@ -561,15 +572,13 @@ class Index:
                 positions.max() >= len(rowids) or (rowids[positions] != allowed).any()
             ):
                 raise ValueError("Dense cache does not match the index snapshot")
-            best = top(scores(matrix[positions]), [ids[p] for p in positions])
+            best = top(matrix[positions], [ids[p] for p in positions])
             return [(c, -s) for s, c in best]
         cursor = self.db.execute("SELECT c.id,c.vector " + scope, args)
         best = []
         while rows := cursor.fetchmany(4096):
             block = unpack([r[1] for r in rows])
-            best = heapq.nsmallest(
-                candidates, best + top(scores(block), [r[0] for r in rows])
-            )
+            best = heapq.nsmallest(candidates, best + top(block, [r[0] for r in rows]))
         return [(c, -s) for s, c in best]
 
     def _dense_matrix(self, dimension, unpack):

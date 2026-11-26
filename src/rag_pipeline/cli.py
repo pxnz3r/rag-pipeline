@@ -73,8 +73,8 @@ def main() -> int:
     parser.add_argument(
         "--vector-cache-mib",
         type=int,
-        default=64,
-        help="Memory budget for repeated unfiltered dense queries; 0 streams all vectors.",
+        default=512,
+        help="Memory budget for the in-memory dense matrix; 0 streams all vectors.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     ingest = sub.add_parser(

@@ -20,7 +20,7 @@ Returns a `Stack(embedder, reranker, search)`: the preset's providers, instantia
 ## `Index`
 
 ```python
-Index(path, embedder=None, reranker=None, *, vector_cache_bytes=64 * 1024 * 1024)
+Index(path, embedder=None, reranker=None, *, vector_cache_bytes=512 * 1024 * 1024)
 ```
 
 A SQLite-backed corpus. Use it as a context manager, or call `close()`.
