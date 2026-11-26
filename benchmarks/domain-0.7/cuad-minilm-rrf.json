@@ -1,0 +1,446 @@
+{
+  "dataset": "cuad-test-span-proxy-10-contracts-seed42",
+  "source": "https://raw.githubusercontent.com/TheAtticusProject/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip",
+  "source_sha256": "f8161d18bea4e9c05e78fa6dda61c19c846fb8087ea969c172753bc2f45b999a",
+  "skipped_query_ids": [],
+  "limitations": "All positive questions from 10 seed-42 sampled test contracts; no training/tuning. Original wording/text/spans. Explicit contract_id scope matches the original this-contract question context. Document recall is trivial under this filter: evaluate character recall/precision. No-answer clauses excluded; NOT official CUAD extraction F1 or full LegalBench-RAG results.",
+  "mode": "hybrid",
+  "effective_mode": "hybrid",
+  "contextual": false,
+  "distinct_documents": false,
+  "search_options": {},
+  "vector_cache_bytes": 67108864,
+  "embedding": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx:mean:256:v1",
+  "reranker": null,
+  "reranker_cache": null,
+  "reranker_index_seconds": 0.0,
+  "split": null,
+  "documents": 10,
+  "chunks": 762,
+  "retrieval": {
+    "queries": 134,
+    "k": 5,
+    "recall_at_k": 1.0,
+    "precision_at_k": 0.19999999999999954,
+    "mrr_at_k": 1.0,
+    "ndcg_at_k": 1.0
+  },
+  "span_retrieval": {
+    "queries": 134,
+    "character_recall": 0.636187916718273,
+    "character_precision": 0.04187938612776544
+  },
+  "negative_queries": 0,
+  "negative_abstention_rate": null,
+  "index_seconds": 11.597084610999445,
+  "query_samples": 134,
+  "latency_ms": {
+    "median": 15.082657499078778,
+    "p95": 22.66783205195679,
+    "max": 30.351428998983465
+  },
+  "rankings": {
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Document Name": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Parties": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Agreement Date": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Effective Date": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Expiration Date": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Governing Law": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Exclusivity": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Anti-Assignment": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Revenue/Profit Sharing": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Minimum Commitment": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Volume Restriction": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Ip Ownership Assignment": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Joint Ip Ownership": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__License Grant": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Affiliate License-Licensee": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Post-Termination Services": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Audit Rights": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Uncapped Liability": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT__Cap On Liability": [
+      "SEASPINEHOLDINGSCORP_10_10_2018-EX-10.1-SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Document Name": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Parties": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Agreement Date": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Effective Date": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Expiration Date": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Governing Law": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Change Of Control": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Anti-Assignment": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Minimum Commitment": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Post-Termination Services": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Audit Rights": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT__Insurance": [
+      "Columbia Laboratories, (Bermuda) Ltd. - AMEND NO. 2 TO MANUFACTURING AND SUPPLY AGREEMENT"
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Document Name": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Parties": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Agreement Date": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Effective Date": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Expiration Date": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Renewal Term": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Notice Period To Terminate Renewal": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Governing Law": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Non-Compete": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Exclusivity": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Termination For Convenience": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Change Of Control": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Anti-Assignment": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Revenue/Profit Sharing": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Ip Ownership Assignment": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Joint Ip Ownership": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __License Grant": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Non-Transferable License": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Irrevocable Or Perpetual License": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Post-Termination Services": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Audit Rights": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Uncapped Liability": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Cap On Liability": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT __Insurance": [
+      "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+    ],
+    "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement__Document Name": [
+      "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement"
+    ],
+    "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement__Parties": [
+      "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement"
+    ],
+    "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement__Agreement Date": [
+      "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement"
+    ],
+    "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement__Expiration Date": [
+      "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement"
+    ],
+    "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement__Uncapped Liability": [
+      "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement"
+    ],
+    "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement__Cap On Liability": [
+      "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement"
+    ],
+    "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement__Warranty Duration": [
+      "PhotronicsInc_20171219_10-QA_EX-10.28_10982650_EX-10.28_Outsourcing Agreement"
+    ],
+    "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT__Document Name": [
+      "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT"
+    ],
+    "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT__Parties": [
+      "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT"
+    ],
+    "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT__Agreement Date": [
+      "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT"
+    ],
+    "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT__Effective Date": [
+      "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT"
+    ],
+    "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT__Governing Law": [
+      "PRIMEENERGYRESOURCESCORP_04_02_2007-EX-10.28-COMPLETION AND LIQUIDITY MAINTENANCE AGREEMENT"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Document Name": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Parties": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Agreement Date": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Expiration Date": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Renewal Term": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Notice Period To Terminate Renewal": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Governing Law": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Rofr/Rofo/Rofn": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Change Of Control": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Anti-Assignment": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Minimum Commitment": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Audit Rights": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Uncapped Liability": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Cap On Liability": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "VAPOTHERM, INC. - Manufacturing and Supply Agreement__Insurance": [
+      "VAPOTHERM, INC. - Manufacturing and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Document Name": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Parties": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Agreement Date": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Effective Date": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Expiration Date": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Renewal Term": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Notice Period To Terminate Renewal": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Governing Law": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Exclusivity": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Anti-Assignment": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Minimum Commitment": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__License Grant": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Post-Termination Services": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Audit Rights": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Cap On Liability": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Liquidated Damages": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Warranty Duration": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement__Covenant Not To Sue": [
+      "HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Document Name": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Parties": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Agreement Date": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Effective Date": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Expiration Date": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Renewal Term": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Notice Period To Terminate Renewal": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Governing Law": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Rofr/Rofo/Rofn": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Revenue/Profit Sharing": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Minimum Commitment": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Post-Termination Services": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Audit Rights": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Insurance": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT__Third Party Beneficiary": [
+      "STWRESOURCESHOLDINGCORP_08_06_2014-EX-10.1-COOPERATION AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Document Name": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Parties": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Expiration Date": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Renewal Term": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Notice Period To Terminate Renewal": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Governing Law": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Anti-Assignment": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__License Grant": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Non-Transferable License": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Post-Termination Services": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Uncapped Liability": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT__Cap On Liability": [
+      "WEBHELPCOMINC_03_22_2000-EX-10.8-HOSTING AGREEMENT"
+    ],
+    "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT__Document Name": [
+      "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT"
+    ],
+    "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT__Parties": [
+      "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT"
+    ],
+    "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT__Agreement Date": [
+      "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT"
+    ],
+    "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT__Effective Date": [
+      "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT"
+    ],
+    "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT__Expiration Date": [
+      "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT"
+    ],
+    "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT__Governing Law": [
+      "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT"
+    ],
+    "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT__Anti-Assignment": [
+      "LOOKSMARTLTD_07_20_2012-EX-99.(D)(I)-SPONSORSHIP AGREEMENT"
+    ]
+  }
+}

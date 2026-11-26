@@ -1,0 +1,732 @@
+{
+  "dataset": "finqa-test-row-proxy-100-seed42",
+  "source": "https://raw.githubusercontent.com/czyssrs/FinQA/0f16e2867befa6840783e58be38c9efb9229d742/dataset/test.json",
+  "source_sha256": "831dbfb2e785dbc227f895ce3f24046433467aec67b09db2bd6ac7692a8a30dc",
+  "skipped_query_ids": [
+    "AWK/2012/page_117.pdf-3",
+    "AMT/2014/page_160.pdf-4"
+  ],
+  "limitations": "100 seed-42 sampled test records, all text/table rows as competing documents. Gold row ids are original annotations. Uniform corpus formatting is independent of labels. Excludes questions with absent gold rows. Cross-page row retrieval proxy, NOT official FinQA numerical execution accuracy or full-test results. No question-specific metadata filters, training or relevance tuning.",
+  "mode": "hybrid",
+  "effective_mode": "hybrid",
+  "contextual": false,
+  "distinct_documents": false,
+  "search_options": {
+    "fusion": "relative",
+    "dense_weight": 0.6
+  },
+  "vector_cache_bytes": 67108864,
+  "embedding": "{\"dimensions\": 384, \"length\": 512, \"model\": \"Xenova/bge-small-en-v1.5\", \"output_index\": 0, \"passage_prefix\": \"\", \"pooling\": \"cls\", \"protocol\": \"onnx-config:v1\", \"query_prefix\": \"Represent this sentence for searching relevant passages: \", \"revision\": \"ea104dacec62c0de699686887e3f920caeb4f3e3\", \"weights\": \"onnx/model_quantized.onnx\"}",
+  "reranker": null,
+  "reranker_cache": null,
+  "reranker_index_seconds": 0.0,
+  "split": null,
+  "documents": 2465,
+  "chunks": 2466,
+  "retrieval": {
+    "queries": 98,
+    "k": 5,
+    "recall_at_k": 0.7585034013605442,
+    "precision_at_k": 0.224489795918367,
+    "mrr_at_k": 0.7579931972789116,
+    "ndcg_at_k": 0.7046211123681406
+  },
+  "span_retrieval": null,
+  "negative_queries": 0,
+  "negative_abstention_rate": null,
+  "index_seconds": 7.709277202000521,
+  "query_samples": 98,
+  "latency_ms": {
+    "median": 8.000630999958958,
+    "p95": 12.835509149044809,
+    "max": 18.232372000056785
+  },
+  "rankings": {
+    "ABC/2005/page_49.pdf-4": [
+      "ABC/2005/page_49.pdf#text_5",
+      "ABC/2005/page_49.pdf#table_4",
+      "ABC/2005/page_49.pdf#table_7",
+      "ABC/2005/page_49.pdf#text_1",
+      "ABC/2005/page_49.pdf#table_1"
+    ],
+    "ETFC/2011/page_144.pdf-2": [
+      "ETFC/2011/page_144.pdf#text_17",
+      "ETFC/2011/page_144.pdf#text_18",
+      "BLK/2012/page_145.pdf#text_1",
+      "ETFC/2011/page_144.pdf#text_6",
+      "GS/2012/page_121.pdf#table_4"
+    ],
+    "DISH/2010/page_117.pdf-1": [
+      "GIS/2017/page_31.pdf#table_4",
+      "GIS/2017/page_31.pdf#table_3",
+      "D/2002/page_87.pdf#text_22",
+      "LKQ/2016/page_87.pdf#table_6",
+      "DISH/2010/page_117.pdf#table_6"
+    ],
+    "MRO/2013/page_19.pdf-4": [
+      "MRO/2013/page_19.pdf#table_1",
+      "MRO/2013/page_19.pdf#table_7",
+      "MRO/2013/page_19.pdf#table_6",
+      "MRO/2013/page_19.pdf#table_5",
+      "MRO/2013/page_19.pdf#table_2"
+    ],
+    "AAL/2016/page_8.pdf-1": [
+      "AAL/2016/page_8.pdf#table_1",
+      "AAL/2016/page_8.pdf#table_2",
+      "AAL/2016/page_8.pdf#table_5",
+      "AAL/2016/page_8.pdf#table_4",
+      "AAL/2016/page_8.pdf#table_3"
+    ],
+    "AMT/2014/page_160.pdf-1": [
+      "AMT/2014/page_160.pdf#text_12",
+      "AMT/2014/page_149.pdf#table_4",
+      "GIS/2018/page_110.pdf#text_1",
+      "MSI/2008/page_69.pdf#text_15",
+      "V/2014/page_126.pdf#table_2"
+    ],
+    "C/2008/page_44.pdf-2": [
+      "C/2008/page_44.pdf#table_2",
+      "C/2008/page_44.pdf#table_1",
+      "C/2008/page_44.pdf#table_3",
+      "MSI/2008/page_69.pdf#text_15",
+      "C/2008/page_44.pdf#table_6"
+    ],
+    "LKQ/2016/page_87.pdf-3": [
+      "LKQ/2016/page_87.pdf#text_7",
+      "AMT/2014/page_160.pdf#text_12",
+      "D/2002/page_87.pdf#text_23",
+      "GS/2014/page_51.pdf#table_17",
+      "AMT/2014/page_149.pdf#text_6"
+    ],
+    "MRO/2003/page_45.pdf-2": [
+      "MRO/2003/page_45.pdf#table_2",
+      "AMT/2006/page_113.pdf#text_13",
+      "MRO/2004/page_125.pdf#table_7",
+      "MRO/2003/page_45.pdf#text_17",
+      "MRO/2003/page_45.pdf#text_8"
+    ],
+    "GS/2014/page_51.pdf-1": [
+      "GS/2013/page_126.pdf#table_7",
+      "GS/2014/page_51.pdf#table_17",
+      "GS/2012/page_121.pdf#table_7",
+      "GS/2013/page_126.pdf#table_8",
+      "GS/2012/page_121.pdf#table_8"
+    ],
+    "ABMD/2005/page_29.pdf-2": [
+      "ABMD/2005/page_29.pdf#text_1",
+      "ABMD/2005/page_29.pdf#text_3",
+      "GPN/2010/page_87.pdf#text_18",
+      "HUM/2009/page_105.pdf#text_11",
+      "CME/2010/page_123.pdf#text_1"
+    ],
+    "HIG/2004/page_140.pdf-1": [
+      "HIG/2004/page_140.pdf#table_2",
+      "HIG/2004/page_140.pdf#text_2",
+      "HIG/2004/page_140.pdf#table_4",
+      "HIG/2004/page_140.pdf#table_3",
+      "GS/2013/page_72.pdf#text_18"
+    ],
+    "HWM/2018/page_96.pdf-2": [
+      "HWM/2018/page_96.pdf#text_1",
+      "GS/2017/page_179.pdf#text_34",
+      "HUM/2009/page_105.pdf#text_6",
+      "HWM/2018/page_96.pdf#table_3",
+      "GS/2017/page_179.pdf#text_33"
+    ],
+    "MRO/2004/page_125.pdf-2": [
+      "MRO/2004/page_125.pdf#table_4",
+      "MRO/2004/page_125.pdf#table_5",
+      "ETR/2004/page_239.pdf#text_8",
+      "ETR/2004/page_239.pdf#table_2",
+      "HIG/2004/page_140.pdf#text_34"
+    ],
+    "IP/2009/page_45.pdf-1": [
+      "IP/2009/page_45.pdf#text_23",
+      "IP/2009/page_45.pdf#table_1",
+      "IP/2009/page_45.pdf#text_25",
+      "DISH/2010/page_117.pdf#text_1",
+      "IP/2006/page_75.pdf#text_1"
+    ],
+    "GS/2012/page_121.pdf-2": [
+      "GS/2012/page_121.pdf#table_13",
+      "GS/2012/page_121.pdf#table_14",
+      "GS/2012/page_121.pdf#table_8",
+      "GS/2013/page_126.pdf#table_13",
+      "GS/2012/page_121.pdf#table_5"
+    ],
+    "ETR/2004/page_239.pdf-3": [
+      "ETR/2004/page_239.pdf#text_3",
+      "ETR/2004/page_239.pdf#text_0",
+      "ETR/2015/page_17.pdf#text_5",
+      "ETR/2015/page_17.pdf#text_0",
+      "ETR/2015/page_17.pdf#text_4"
+    ],
+    "ILMN/2008/page_86.pdf-4": [
+      "ILMN/2008/page_86.pdf#text_25",
+      "ILMN/2008/page_86.pdf#text_26",
+      "ILMN/2008/page_86.pdf#text_27",
+      "SNA/2007/page_69.pdf#text_25",
+      "MSI/2008/page_69.pdf#text_14"
+    ],
+    "GPN/2010/page_87.pdf-2": [
+      "GPN/2010/page_87.pdf#table_1",
+      "GPN/2010/page_87.pdf#text_19",
+      "GPN/2010/page_87.pdf#text_8",
+      "GPN/2010/page_87.pdf#table_2",
+      "ILMN/2008/page_86.pdf#text_3"
+    ],
+    "AAL/2013/page_172.pdf-1": [
+      "AAL/2013/page_172.pdf#text_1",
+      "AAL/2013/page_172.pdf#table_2",
+      "AAL/2013/page_172.pdf#text_9",
+      "AAL/2013/page_172.pdf#text_10",
+      "AAL/2016/page_8.pdf#text_10"
+    ],
+    "MRO/2013/page_39.pdf-3": [
+      "MRO/2013/page_39.pdf#table_1",
+      "MRO/2013/page_39.pdf#table_2",
+      "MRO/2013/page_39.pdf#text_23",
+      "AAL/2013/page_18.pdf#text_1",
+      "MRO/2013/page_39.pdf#text_21"
+    ],
+    "CME/2010/page_123.pdf-3": [
+      "CME/2010/page_123.pdf#table_3",
+      "CME/2010/page_123.pdf#text_4",
+      "CME/2010/page_123.pdf#table_1",
+      "CME/2010/page_123.pdf#table_2",
+      "KHC/2018/page_132.pdf#table_2"
+    ],
+    "JKHY/2019/page_18.pdf-3": [
+      "JKHY/2019/page_18.pdf#table_3",
+      "JKHY/2019/page_18.pdf#table_2",
+      "L/2009/page_84.pdf#text_1",
+      "JKHY/2019/page_18.pdf#text_2",
+      "JKHY/2019/page_18.pdf#text_4"
+    ],
+    "MMM/2007/page_84.pdf-1": [
+      "MMM/2007/page_84.pdf#table_3",
+      "MMM/2007/page_84.pdf#table_4",
+      "MMM/2007/page_84.pdf#text_22",
+      "MMM/2007/page_84.pdf#table_5",
+      "MMM/2007/page_84.pdf#table_6"
+    ],
+    "ETR/2015/page_17.pdf-3": [
+      "ETR/2015/page_17.pdf#table_2",
+      "ETR/2015/page_17.pdf#text_4",
+      "ETR/2015/page_17.pdf#text_2",
+      "ETR/2015/page_17.pdf#table_8",
+      "ETR/2015/page_17.pdf#table_1"
+    ],
+    "C/2018/page_175.pdf-1": [
+      "C/2018/page_175.pdf#table_1",
+      "UPS/2016/page_114.pdf#text_9",
+      "UPS/2016/page_114.pdf#text_2",
+      "C/2018/page_175.pdf#text_7",
+      "UPS/2016/page_114.pdf#text_14"
+    ],
+    "GS/2013/page_126.pdf-2": [
+      "GS/2013/page_126.pdf#table_13",
+      "GS/2013/page_126.pdf#table_14",
+      "GS/2013/page_126.pdf#table_5",
+      "GS/2012/page_121.pdf#table_13",
+      "GS/2013/page_126.pdf#table_8"
+    ],
+    "HUM/2009/page_105.pdf-1": [
+      "HUM/2009/page_105.pdf#table_1",
+      "HUM/2009/page_105.pdf#text_12",
+      "HUM/2009/page_105.pdf#text_13",
+      "GPN/2010/page_89.pdf#text_10",
+      "MO/2014/page_62.pdf#text_0"
+    ],
+    "LMT/2016/page_49.pdf-4": [
+      "LMT/2016/page_49.pdf#text_18",
+      "LMT/2016/page_49.pdf#text_14",
+      "LMT/2016/page_49.pdf#table_2",
+      "LMT/2016/page_49.pdf#text_15",
+      "MO/2014/page_62.pdf#text_9"
+    ],
+    "JPM/2018/page_90.pdf-2": [
+      "JPM/2018/page_90.pdf#table_1",
+      "JPM/2018/page_90.pdf#text_5",
+      "JPM/2018/page_90.pdf#text_21",
+      "JPM/2018/page_90.pdf#table_7",
+      "GIS/2017/page_31.pdf#text_21"
+    ],
+    "RSG/2018/page_94.pdf-2": [
+      "RSG/2018/page_94.pdf#text_16",
+      "RSG/2012/page_93.pdf#text_16",
+      "RSG/2018/page_94.pdf#text_19",
+      "RSG/2012/page_93.pdf#text_19",
+      "HUM/2009/page_105.pdf#text_2"
+    ],
+    "AMT/2014/page_149.pdf-2": [
+      "AMT/2014/page_149.pdf#table_5",
+      "AMT/2014/page_149.pdf#text_2",
+      "HWM/2015/page_173.pdf#table_7",
+      "AMT/2014/page_149.pdf#text_3",
+      "STT/2009/page_127.pdf#table_1"
+    ],
+    "AAL/2013/page_172.pdf-3": [
+      "AAL/2013/page_172.pdf#text_1",
+      "AAL/2013/page_172.pdf#table_2",
+      "AAL/2013/page_172.pdf#text_9",
+      "AAL/2013/page_172.pdf#text_19",
+      "AAL/2013/page_172.pdf#text_16"
+    ],
+    "TMUS/2017/page_29.pdf-4": [
+      "TMUS/2017/page_29.pdf#text_18",
+      "TMUS/2017/page_29.pdf#text_20",
+      "AMT/2003/page_27.pdf#table_1",
+      "TMUS/2017/page_29.pdf#text_21",
+      "TMUS/2017/page_29.pdf#table_2"
+    ],
+    "STT/2009/page_127.pdf-2": [
+      "STT/2009/page_127.pdf#text_7",
+      "STT/2009/page_127.pdf#text_5",
+      "STT/2009/page_127.pdf#text_9",
+      "STT/2009/page_127.pdf#table_3",
+      "STT/2009/page_127.pdf#table_4"
+    ],
+    "GS/2013/page_85.pdf-2": [
+      "GS/2013/page_85.pdf#text_15",
+      "GS/2013/page_85.pdf#text_17",
+      "GS/2013/page_126.pdf#text_6",
+      "GS/2013/page_126.pdf#table_5",
+      "GS/2012/page_121.pdf#table_5"
+    ],
+    "ABMD/2012/page_41.pdf-3": [
+      "ABMD/2012/page_41.pdf#table_1",
+      "ABMD/2012/page_41.pdf#text_2",
+      "ABMD/2005/page_29.pdf#text_0",
+      "GPN/2010/page_87.pdf#text_9",
+      "ABMD/2005/page_29.pdf#text_6"
+    ],
+    "INTC/2015/page_41.pdf-2": [
+      "INTC/2015/page_41.pdf#text_3",
+      "INTC/2015/page_41.pdf#table_1",
+      "AMT/2003/page_27.pdf#table_3",
+      "AMT/2003/page_27.pdf#table_1",
+      "AMT/2003/page_27.pdf#text_8"
+    ],
+    "MO/2014/page_62.pdf-1": [
+      "MO/2014/page_62.pdf#table_3",
+      "MO/2014/page_62.pdf#text_8",
+      "MO/2014/page_62.pdf#table_4",
+      "MO/2014/page_62.pdf#text_10",
+      "HII/2015/page_121.pdf#table_7"
+    ],
+    "DG/2007/page_67.pdf-1": [
+      "DG/2007/page_67.pdf#text_10",
+      "AMT/2006/page_113.pdf#text_10",
+      "AMT/2006/page_113.pdf#text_11",
+      "AMT/2006/page_113.pdf#text_14",
+      "RSG/2012/page_93.pdf#table_2"
+    ],
+    "CMCSA/2015/page_112.pdf-3": [
+      "CMCSA/2015/page_112.pdf#text_13",
+      "MRK/2013/page_125.pdf#text_0",
+      "HWM/2015/page_173.pdf#text_6",
+      "MRK/2013/page_125.pdf#text_29",
+      "HWM/2015/page_173.pdf#text_8"
+    ],
+    "FIS/2012/page_48.pdf-2": [
+      "FIS/2012/page_48.pdf#table_2",
+      "FIS/2012/page_48.pdf#table_5",
+      "FIS/2012/page_48.pdf#text_3",
+      "FIS/2012/page_48.pdf#text_1",
+      "FIS/2012/page_48.pdf#table_3"
+    ],
+    "GIS/2018/page_110.pdf-1": [
+      "GIS/2018/page_110.pdf#text_4",
+      "GIS/2017/page_31.pdf#text_2",
+      "LKQ/2016/page_87.pdf#text_12",
+      "GIS/2018/page_110.pdf#table_7",
+      "SNA/2007/page_69.pdf#text_3"
+    ],
+    "CE/2009/page_65.pdf-2": [
+      "CE/2009/page_65.pdf#table_1",
+      "CE/2009/page_65.pdf#text_1",
+      "CE/2009/page_65.pdf#table_7",
+      "CE/2009/page_65.pdf#table_2",
+      "CE/2009/page_65.pdf#table_5"
+    ],
+    "CDNS/2018/page_66.pdf-4": [
+      "CDNS/2018/page_66.pdf#text_8",
+      "CDNS/2018/page_66.pdf#table_2",
+      "CDNS/2018/page_66.pdf#text_1",
+      "CDNS/2018/page_66.pdf#table_6",
+      "CDNS/2018/page_66.pdf#text_9"
+    ],
+    "SNA/2007/page_69.pdf-1": [
+      "SNA/2007/page_69.pdf#text_9",
+      "SNA/2007/page_69.pdf#text_10",
+      "SNA/2007/page_69.pdf#text_7",
+      "C/2008/page_44.pdf#table_6",
+      "C/2008/page_44.pdf#text_10"
+    ],
+    "GS/2017/page_179.pdf-2": [
+      "GS/2017/page_179.pdf#text_25",
+      "GS/2017/page_179.pdf#text_27",
+      "GS/2017/page_179.pdf#table_1",
+      "STT/2009/page_127.pdf#text_19",
+      "HII/2015/page_121.pdf#table_5"
+    ],
+    "AES/2001/page_33.pdf-2": [
+      "AES/2001/page_33.pdf#table_1",
+      "AES/2001/page_33.pdf#text_2",
+      "AES/2001/page_33.pdf#table_2",
+      "HOLX/2008/page_143.pdf#text_14",
+      "AMT/2006/page_113.pdf#text_12"
+    ],
+    "AAL/2016/page_8.pdf-3": [
+      "AAL/2016/page_8.pdf#table_5",
+      "AAL/2016/page_8.pdf#table_4",
+      "AAL/2016/page_8.pdf#table_3",
+      "ALLE/2015/page_24.pdf#text_5",
+      "AAL/2016/page_8.pdf#table_2"
+    ],
+    "DXC/2018/page_56.pdf-2": [
+      "DXC/2018/page_56.pdf#table_2",
+      "DXC/2018/page_56.pdf#text_13",
+      "DXC/2018/page_56.pdf#table_1",
+      "DXC/2018/page_56.pdf#text_6",
+      "DXC/2018/page_56.pdf#table_3"
+    ],
+    "GIS/2017/page_31.pdf-4": [
+      "GIS/2017/page_31.pdf#text_19",
+      "DXC/2018/page_56.pdf#text_8",
+      "DXC/2018/page_56.pdf#text_11",
+      "GIS/2017/page_31.pdf#text_18",
+      "HST/2018/page_135.pdf#text_3"
+    ],
+    "TMUS/2017/page_29.pdf-2": [
+      "TMUS/2017/page_29.pdf#table_3",
+      "TMUS/2017/page_29.pdf#table_2",
+      "TMUS/2017/page_29.pdf#table_1",
+      "TMUS/2017/page_29.pdf#text_17",
+      "TMUS/2017/page_29.pdf#table_4"
+    ],
+    "RSG/2012/page_93.pdf-1": [
+      "RSG/2012/page_93.pdf#text_9",
+      "RSG/2012/page_93.pdf#text_7",
+      "RSG/2012/page_93.pdf#text_11",
+      "RSG/2012/page_93.pdf#text_15",
+      "RSG/2018/page_94.pdf#text_15"
+    ],
+    "FIS/2016/page_9.pdf-2": [
+      "FIS/2016/page_9.pdf#table_1",
+      "FIS/2016/page_9.pdf#text_1",
+      "FIS/2016/page_9.pdf#text_0",
+      "FIS/2016/page_9.pdf#text_2",
+      "UPS/2016/page_114.pdf#text_11"
+    ],
+    "AMT/2006/page_104.pdf-3": [
+      "AMT/2006/page_104.pdf#text_2",
+      "AMT/2006/page_104.pdf#text_0",
+      "IPG/2006/page_77.pdf#text_14",
+      "AMT/2006/page_104.pdf#text_8",
+      "IPG/2006/page_77.pdf#text_12"
+    ],
+    "GS/2012/page_121.pdf-1": [
+      "GS/2012/page_121.pdf#table_7",
+      "GS/2012/page_121.pdf#table_8",
+      "GS/2012/page_121.pdf#table_6",
+      "GS/2013/page_126.pdf#table_7",
+      "GS/2012/page_121.pdf#table_1"
+    ],
+    "HST/2018/page_135.pdf-1": [
+      "NCLH/2018/page_64.pdf#text_28",
+      "HST/2018/page_135.pdf#text_3",
+      "MRK/2013/page_125.pdf#text_28",
+      "MRK/2013/page_125.pdf#text_22",
+      "MRK/2013/page_125.pdf#text_11"
+    ],
+    "GPN/2010/page_89.pdf-2": [
+      "GPN/2010/page_89.pdf#table_9",
+      "GPN/2010/page_89.pdf#table_5",
+      "GPN/2010/page_89.pdf#table_1",
+      "GPN/2010/page_89.pdf#text_11",
+      "GPN/2010/page_89.pdf#text_9"
+    ],
+    "TFX/2015/page_89.pdf-3": [
+      "TFX/2015/page_89.pdf#text_19",
+      "DXC/2018/page_56.pdf#text_12",
+      "TFX/2015/page_89.pdf#table_4",
+      "TFX/2015/page_89.pdf#table_3",
+      "DXC/2018/page_56.pdf#table_1"
+    ],
+    "UPS/2016/page_114.pdf-2": [
+      "UPS/2016/page_114.pdf#table_3",
+      "INTC/2015/page_41.pdf#text_3",
+      "HUM/2017/page_118.pdf#table_6",
+      "HUM/2017/page_118.pdf#table_5",
+      "LMT/2016/page_49.pdf#text_15"
+    ],
+    "HUM/2017/page_118.pdf-4": [
+      "HUM/2017/page_118.pdf#text_1",
+      "HUM/2017/page_118.pdf#text_2",
+      "UPS/2016/page_114.pdf#table_4",
+      "HST/2018/page_135.pdf#text_19",
+      "GS/2017/page_179.pdf#table_2"
+    ],
+    "MRO/2017/page_96.pdf-4": [
+      "MRO/2017/page_96.pdf#table_1",
+      "MRO/2017/page_96.pdf#table_2",
+      "MRO/2017/page_96.pdf#table_3",
+      "MRO/2017/page_96.pdf#text_5",
+      "MRO/2017/page_96.pdf#text_8"
+    ],
+    "MRK/2013/page_125.pdf-3": [
+      "MRK/2013/page_125.pdf#text_7",
+      "AWK/2013/page_122.pdf#text_11",
+      "ILMN/2008/page_86.pdf#text_21",
+      "GIS/2017/page_31.pdf#text_21",
+      "AWK/2012/page_117.pdf#text_11"
+    ],
+    "CMCSA/2015/page_112.pdf-4": [
+      "DISH/2010/page_117.pdf#text_7",
+      "CMCSA/2015/page_112.pdf#text_4",
+      "CMCSA/2015/page_112.pdf#text_3",
+      "HII/2015/page_121.pdf#table_3",
+      "CMCSA/2015/page_112.pdf#text_2"
+    ],
+    "AWK/2013/page_122.pdf-1": [
+      "AWK/2013/page_122.pdf#text_9",
+      "AWK/2012/page_117.pdf#text_9",
+      "MRK/2013/page_125.pdf#text_9",
+      "GIS/2017/page_31.pdf#text_21",
+      "SNA/2007/page_69.pdf#text_16"
+    ],
+    "AMT/2003/page_27.pdf-1": [
+      "AMT/2003/page_27.pdf#table_1",
+      "AMT/2003/page_27.pdf#text_3",
+      "LKQ/2016/page_87.pdf#table_6",
+      "DISH/2010/page_117.pdf#table_12",
+      "HST/2018/page_135.pdf#text_11"
+    ],
+    "MRO/2013/page_19.pdf-3": [
+      "MRO/2013/page_19.pdf#table_7",
+      "MRO/2013/page_19.pdf#table_5",
+      "MRO/2013/page_19.pdf#table_4",
+      "MRO/2013/page_19.pdf#table_1",
+      "MRO/2013/page_19.pdf#table_6"
+    ],
+    "CDNS/2015/page_30.pdf-4": [
+      "CDNS/2015/page_30.pdf#text_1",
+      "CDNS/2015/page_30.pdf#table_1",
+      "CDNS/2015/page_30.pdf#text_0",
+      "CDNS/2018/page_66.pdf#text_1",
+      "ABMD/2012/page_41.pdf#text_0"
+    ],
+    "IPG/2006/page_77.pdf-1": [
+      "IPG/2006/page_77.pdf#text_3",
+      "IPG/2006/page_77.pdf#text_4",
+      "UPS/2016/page_114.pdf#text_14",
+      "IPG/2006/page_77.pdf#text_5",
+      "ABC/2005/page_49.pdf#table_5"
+    ],
+    "ALLE/2015/page_24.pdf-2": [
+      "ALLE/2015/page_24.pdf#text_16",
+      "ALLE/2015/page_24.pdf#text_17",
+      "MMM/2007/page_84.pdf#table_5",
+      "AMT/2014/page_160.pdf#text_12",
+      "MMM/2007/page_84.pdf#text_19"
+    ],
+    "AAL/2013/page_18.pdf-3": [
+      "AAL/2013/page_18.pdf#text_1",
+      "AAL/2013/page_18.pdf#text_12",
+      "AAL/2013/page_18.pdf#text_9",
+      "AAL/2013/page_18.pdf#text_13",
+      "AAL/2013/page_18.pdf#text_14"
+    ],
+    "IP/2006/page_75.pdf-2": [
+      "IP/2006/page_75.pdf#text_1",
+      "LKQ/2016/page_87.pdf#text_6",
+      "GIS/2018/page_110.pdf#table_7",
+      "D/2002/page_87.pdf#text_22",
+      "GIS/2017/page_31.pdf#text_11"
+    ],
+    "NCLH/2018/page_64.pdf-2": [
+      "NCLH/2018/page_64.pdf#text_1",
+      "GIS/2017/page_31.pdf#table_4",
+      "NCLH/2018/page_64.pdf#text_3",
+      "GIS/2018/page_110.pdf#table_4",
+      "GIS/2018/page_110.pdf#table_3"
+    ],
+    "L/2009/page_84.pdf-2": [
+      "GS/2013/page_220.pdf#text_4",
+      "L/2009/page_84.pdf#table_2",
+      "GS/2013/page_220.pdf#text_0",
+      "GS/2013/page_220.pdf#text_1",
+      "MAS/2017/page_27.pdf#text_0"
+    ],
+    "MAS/2017/page_27.pdf-3": [
+      "MAS/2017/page_27.pdf#table_2",
+      "L/2009/page_84.pdf#table_2",
+      "JKHY/2017/page_26.pdf#table_3",
+      "MAS/2017/page_27.pdf#text_0",
+      "GS/2013/page_220.pdf#text_4"
+    ],
+    "JKHY/2017/page_26.pdf-2": [
+      "JKHY/2019/page_18.pdf#text_2",
+      "JKHY/2019/page_18.pdf#text_4",
+      "JKHY/2017/page_26.pdf#text_2",
+      "JKHY/2017/page_26.pdf#table_2",
+      "JKHY/2019/page_18.pdf#table_2"
+    ],
+    "PKG/2005/page_74.pdf-4": [
+      "PKG/2005/page_74.pdf#text_2",
+      "PKG/2005/page_74.pdf#text_1",
+      "UPS/2010/page_52.pdf#table_5",
+      "D/2002/page_87.pdf#text_11",
+      "IP/2006/page_75.pdf#text_1"
+    ],
+    "MSI/2008/page_69.pdf-1": [
+      "MSI/2008/page_69.pdf#text_13",
+      "MSI/2008/page_69.pdf#table_1",
+      "C/2008/page_44.pdf#table_1",
+      "C/2008/page_44.pdf#table_11",
+      "C/2008/page_44.pdf#text_8"
+    ],
+    "GS/2013/page_72.pdf-2": [
+      "GS/2013/page_72.pdf#text_0",
+      "GS/2013/page_72.pdf#table_10",
+      "GS/2013/page_72.pdf#table_8",
+      "GS/2013/page_72.pdf#text_9",
+      "GS/2013/page_72.pdf#text_15"
+    ],
+    "D/2002/page_87.pdf-2": [
+      "D/2002/page_87.pdf#text_0",
+      "IP/2009/page_45.pdf#text_23",
+      "D/2002/page_87.pdf#text_17",
+      "GIS/2017/page_31.pdf#table_1",
+      "PKG/2005/page_74.pdf#text_2"
+    ],
+    "UPS/2010/page_52.pdf-3": [
+      "UPS/2010/page_52.pdf#table_6",
+      "GIS/2017/page_31.pdf#table_6",
+      "UPS/2010/page_52.pdf#text_15",
+      "UPS/2010/page_52.pdf#text_12",
+      "UPS/2010/page_52.pdf#text_0"
+    ],
+    "BLK/2012/page_145.pdf-1": [
+      "BLK/2012/page_145.pdf#table_8",
+      "GIS/2017/page_31.pdf#table_1",
+      "GIS/2017/page_31.pdf#table_8",
+      "GIS/2017/page_31.pdf#table_7",
+      "BLK/2012/page_145.pdf#text_18"
+    ],
+    "GS/2013/page_220.pdf-4": [
+      "GS/2013/page_220.pdf#table_1",
+      "GS/2013/page_220.pdf#text_4",
+      "GS/2013/page_220.pdf#text_3",
+      "GS/2017/page_179.pdf#text_0",
+      "GS/2013/page_220.pdf#text_6"
+    ],
+    "HII/2015/page_121.pdf-3": [
+      "MSI/2008/page_69.pdf#table_1",
+      "HUM/2017/page_118.pdf#table_1",
+      "GS/2012/page_121.pdf#table_6",
+      "HII/2015/page_121.pdf#table_1",
+      "GS/2014/page_51.pdf#table_17"
+    ],
+    "ETFC/2018/page_153.pdf-2": [
+      "ETFC/2018/page_153.pdf#text_13",
+      "ETFC/2018/page_153.pdf#table_4",
+      "ETFC/2018/page_153.pdf#text_15",
+      "STT/2009/page_127.pdf#text_2",
+      "STT/2009/page_127.pdf#text_9"
+    ],
+    "UNP/2006/page_15.pdf-1": [
+      "UNP/2006/page_15.pdf#text_15",
+      "UNP/2006/page_15.pdf#text_16",
+      "AMT/2003/page_27.pdf#text_8",
+      "AAL/2016/page_8.pdf#table_7",
+      "INTC/2015/page_41.pdf#table_1"
+    ],
+    "KHC/2018/page_132.pdf-3": [
+      "KHC/2018/page_132.pdf#text_25",
+      "HUM/2017/page_118.pdf#table_5",
+      "HUM/2017/page_118.pdf#table_6",
+      "KHC/2018/page_132.pdf#table_1",
+      "HUM/2017/page_118.pdf#table_2"
+    ],
+    "JKHY/2019/page_18.pdf-2": [
+      "JKHY/2019/page_18.pdf#text_2",
+      "JKHY/2017/page_26.pdf#text_2",
+      "JKHY/2019/page_18.pdf#text_4",
+      "JKHY/2019/page_18.pdf#text_3",
+      "JKHY/2017/page_26.pdf#text_0"
+    ],
+    "AMT/2006/page_113.pdf-3": [
+      "AMT/2006/page_113.pdf#table_1",
+      "ABC/2005/page_49.pdf#table_7",
+      "ABC/2005/page_49.pdf#table_4",
+      "ABC/2005/page_49.pdf#table_1",
+      "AMT/2006/page_113.pdf#text_16"
+    ],
+    "V/2014/page_126.pdf-2": [
+      "V/2014/page_126.pdf#table_5",
+      "V/2014/page_126.pdf#text_5",
+      "AMT/2014/page_149.pdf#table_4",
+      "HUM/2009/page_105.pdf#text_12",
+      "GS/2013/page_126.pdf#table_8"
+    ],
+    "L/2009/page_84.pdf-4": [
+      "L/2009/page_84.pdf#table_2",
+      "MAS/2017/page_27.pdf#text_0",
+      "GS/2013/page_220.pdf#text_4",
+      "MRO/2017/page_96.pdf#text_11",
+      "L/2009/page_84.pdf#text_2"
+    ],
+    "GPN/2008/page_78.pdf-4": [
+      "DG/2007/page_67.pdf#text_12",
+      "GPN/2008/page_78.pdf#table_9",
+      "GS/2013/page_72.pdf#table_5",
+      "AMT/2014/page_149.pdf#text_16",
+      "GS/2012/page_121.pdf#table_8"
+    ],
+    "HWM/2015/page_173.pdf-1": [
+      "HWM/2015/page_173.pdf#text_13",
+      "HWM/2015/page_173.pdf#text_10",
+      "HWM/2015/page_173.pdf#text_11",
+      "CMCSA/2015/page_112.pdf#text_14",
+      "HWM/2015/page_173.pdf#text_12"
+    ],
+    "MAS/2017/page_27.pdf-4": [
+      "MAS/2017/page_27.pdf#text_3",
+      "MAS/2017/page_27.pdf#table_2",
+      "MAS/2017/page_27.pdf#text_0",
+      "MAS/2017/page_27.pdf#text_2",
+      "MAS/2017/page_27.pdf#table_3"
+    ],
+    "DISCA/2011/page_49.pdf-1": [
+      "DISCA/2011/page_49.pdf#text_2",
+      "DISCA/2011/page_49.pdf#table_4",
+      "DISCA/2011/page_49.pdf#table_1",
+      "DISCA/2011/page_49.pdf#text_0",
+      "DISCA/2011/page_49.pdf#table_3"
+    ],
+    "DISH/2010/page_117.pdf-2": [
+      "GIS/2017/page_31.pdf#table_4",
+      "GIS/2017/page_31.pdf#table_3",
+      "LKQ/2016/page_87.pdf#table_6",
+      "DISH/2010/page_117.pdf#table_6",
+      "D/2002/page_87.pdf#text_22"
+    ],
+    "AAL/2013/page_18.pdf-1": [
+      "AAL/2013/page_18.pdf#text_0",
+      "AAL/2013/page_18.pdf#text_12",
+      "AAL/2013/page_18.pdf#text_2",
+      "AAL/2013/page_18.pdf#text_11",
+      "AAL/2013/page_18.pdf#text_26"
+    ],
+    "HOLX/2008/page_143.pdf-1": [
+      "HOLX/2008/page_143.pdf#text_6",
+      "HOLX/2008/page_143.pdf#text_24",
+      "HOLX/2008/page_143.pdf#text_2",
+      "HOLX/2008/page_143.pdf#text_1",
+      "HOLX/2008/page_143.pdf#text_14"
+    ]
+  }
+}

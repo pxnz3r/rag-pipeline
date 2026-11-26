@@ -1,0 +1,1 @@
+{"reranker": {"kind": "onnx", "options": {"model": "Alibaba-NLP/gte-reranker-modernbert-base", "revision": "f7481e6055501a30fb19d090657df9ec1f79ab2c", "length": 512, "batch_size": 4}}, "search": {"mode": "hybrid", "fusion": "relative", "dense_weight": 0.6, "rerank_candidates": 20}}

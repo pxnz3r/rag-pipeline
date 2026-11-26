@@ -53,19 +53,24 @@ class _ONNX:
         graph = hf_hub_download(self.model, self.weights, revision=self.revision)
         providers = providers or ["CPUExecutionProvider"]
 
-        def session(threads):
+        def session(threads, spin=True):
             options = ort.SessionOptions()
             options.intra_op_num_threads = threads
             options.inter_op_num_threads = 1
+            if not spin:
+                options.add_session_config_entry("session.intra_op.allow_spinning", "0")
             return ort.InferenceSession(
                 graph, sess_options=options, providers=providers
             )
 
         self.session = session(1 if concurrent else self.workers)
         # A lone batch (a query) cannot spread across sessions, so it gets one
-        # multi-threaded session, built on first use: 15.5 -> 7.3 ms per query
-        # for ArcticM on four cores.
-        self._solo_session = (lambda: session(self.workers)) if concurrent else None
+        # multi-threaded session, built on first use (ArcticM: 15.5 -> 8.5 ms).
+        # Its threads must not spin after the run: spinning workers slowed the
+        # FTS and NumPy work that follows a query, FiQA hybrid 58 -> 87 ms.
+        self._solo_session = (
+            (lambda: session(self.workers, spin=False)) if concurrent else None
+        )
         self._solo = None
         self._pool = (
             ThreadPoolExecutor(self.workers, thread_name_prefix="rag-onnx")
