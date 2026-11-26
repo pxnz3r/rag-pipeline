@@ -17,7 +17,7 @@ Before the parser change, 41 of the 84 filings failed to ingest at all.
 
 ## PDF extraction
 
-Over the 84 filings, measured with `extract_compare` (gold evidence numbers found on the gold page):
+Over the 84 filings, measured with `scripts/compare_pdf_extraction.py` (gold evidence numbers found on the gold page):
 
 | Engine | Failed filings | CPU seconds | Extracted text | Gold numbers found |
 | --- | ---: | ---: | ---: | ---: |
