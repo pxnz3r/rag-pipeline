@@ -133,8 +133,10 @@ def test_agent_cannot_expand_scope_or_loop_indefinitely(tmp_path):
             calls.append(1)
             return json.dumps({"action": "documents", "arguments": {}})
 
-        with pytest.raises(ValueError, match="call budget"):
-            Navigation(index, max_calls=2).answer("Revenue?", plan=repeated)
+        # A model that never answers stops at the call budget and abstains,
+        # since browsing documents gathers no citable evidence.
+        looped = Navigation(index, max_calls=2).answer("Revenue?", plan=repeated)
+        assert looped.status == "no_evidence"
         assert len(calls) == 3
 
 
@@ -220,3 +222,34 @@ def test_invalid_navigation_budget(tmp_path, options):
     with Index(tmp_path / "i.sqlite") as index:
         with pytest.raises(ValueError):
             Navigation(index, **options)
+
+
+def test_agent_recovers_from_bad_steps_and_answers_when_out_of_steps(tmp_path):
+    index, _ = corpus(tmp_path)
+    with index:
+        replies = iter(
+            [
+                "Let me think about this.",  # no JSON at all
+                '```json\n{"action": "fly", "arguments": {}}\n```',  # unknown action
+                '{"action": "read", "arguments": {"document": "a.csv"}}',  # bad args
+                'Sure: {"action": "search", "arguments": {"question": "revenue"}}',
+            ]
+        )
+        seen = []
+
+        def plan(system, payload):
+            seen.append(json.loads(payload))
+            return next(replies, '{"action": "search", "arguments": {"question": "x"}}')
+
+        session = Navigation(
+            index, filters={"company": "A"}, max_calls=2, search={"k": 1}
+        )
+        result = session.answer("What was revenue?", plan=plan)
+        errors = [h for h in seen[-1]["history"] if "error" in h]
+        assert len(errors) == 3
+        assert "JSON" in errors[0]["error"] and errors[1]["action"] == "fly"
+        # The search ran with the session default k=1 and found evidence; the
+        # call budget ran out, so the answer uses what was gathered.
+        assert result.status == "evidence"
+        assert [s.document for s in result.sources] == ["a.csv"]
+        assert session.trace[0]["action"] == "search"

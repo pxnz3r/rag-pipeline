@@ -120,6 +120,13 @@ def main() -> int:
                 action="store_true",
                 help="Use the configured generation provider; default returns evidence.",
             )
+            query.add_argument(
+                "--agent",
+                action="store_true",
+                help="Let the configured chat model search, browse and read in "
+                "several steps before answering (implies --generate).",
+            )
+            query.add_argument("--max-steps", type=int, default=12)
         if name == "reason":
             query.add_argument("--max-attempts", type=int, default=1)
             query.add_argument(
@@ -268,7 +275,11 @@ def main() -> int:
             if spec is None:
                 raise ValueError("Reranking requires an explicit provider")
             reranker = provider(spec, "reranker")
-        if args.command == "reason" or getattr(args, "generate", False):
+        if (
+            args.command == "reason"
+            or getattr(args, "generate", False)
+            or getattr(args, "agent", False)
+        ):
             if "generation" not in config:
                 raise ValueError("Generation requires an explicit provider in --config")
             generator = provider(config["generation"], "generation")
@@ -387,6 +398,29 @@ def main() -> int:
                                 **opts,
                             )
                         )
+                    elif args.command == "ask" and args.agent:
+                        from .navigation import Navigation
+
+                        session = Navigation(
+                            index,
+                            filters=opts.pop("filters"),
+                            max_calls=args.max_steps,
+                            search={
+                                k: v
+                                for k, v in opts.items()
+                                if k not in {"k", "distinct_documents"}
+                            },
+                        )
+                        result = asdict(
+                            session.answer(
+                                args.question,
+                                plan=generator,
+                                generate=generator,
+                                max_evidence_chars=config.get("answer", {}).get(
+                                    "max_evidence_chars", 12000
+                                ),
+                            )
+                        ) | {"trace": session.trace}
                     elif args.command == "ask":
                         result = asdict(
                             answer(

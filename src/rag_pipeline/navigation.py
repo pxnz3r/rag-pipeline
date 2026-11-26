@@ -12,7 +12,11 @@ from .index import Hit
 
 
 class Navigation:
-    def __init__(self, index, *, filters=None, max_calls=12, max_chars=50000):
+    def __init__(
+        self, index, *, filters=None, max_calls=12, max_chars=50000, search=None
+    ):
+        """``search`` holds default search options (a preset's hybrid route)."""
+        self.search_options = dict(search or {})
         if (
             any(
                 not isinstance(v, int) or isinstance(v, bool)
@@ -216,12 +220,13 @@ class Navigation:
     def search(self, question, **options):
         if "filters" in options:
             raise ValueError("Navigation scope cannot be overridden")
+        merged = {**self.search_options, **options}
         return self._call(
             "search",
             dict(question=question, **options),
             lambda: [
                 h.to_dict()
-                for h in self.index.search(question, filters=self.filters, **options)
+                for h in self.index.search(question, filters=self.filters, **merged)
             ],
         )
 
@@ -265,7 +270,7 @@ class Navigation:
             "documents(offset=0,limit=20), outline(document,offset=0,limit=20), "
             "headings(document,parent=null,offset=0,limit=20), "
             "read(document,locator,start=0,chars=4000), "
-            "search(question,k=5,mode='lexical'), "
+            "search(question,k=5), "
             "calculate(operation,operands), answer(). "
             "Calculation operations: sum, difference, ratio, growth_percent. "
             "Operands: {source_id,quote,value,unit}, all strings copied from read/search evidence. "
@@ -278,7 +283,10 @@ class Navigation:
         )
         history, evidence, calculations = [], {}, []
         available_calls = self.max_calls - len(self.trace)
-        for step in range(available_calls + 1):
+        # Tool calls are capped by the session budget; malformed replies get a
+        # separate allowance of the same size, so a few slips can't starve the
+        # search and a model that never recovers still stops.
+        for _ in range(2 * available_calls + 1):
             raw = plan(
                 instructions,
                 json.dumps(
@@ -286,19 +294,17 @@ class Navigation:
                         question=question,
                         history=history,
                         remaining_chars=self.remaining,
-                        remaining_steps=available_calls - step,
+                        remaining_steps=self.max_calls - len(self.trace),
                     )
                 ),
             )
-            if not isinstance(raw, str) or len(raw) > 8000:
-                raise ValueError("Invalid navigation plan")
-            action = json.loads(raw)
-            if (
-                not isinstance(action, dict)
-                or set(action) != {"action", "arguments"}
-                or not isinstance(action["arguments"], dict)
-            ):
-                raise ValueError("Invalid navigation plan")
+            try:
+                action = _parse_plan(raw)
+            except ValueError as error:
+                # A malformed step costs one step, not the whole answer: small
+                # local models slip occasionally and recover when told why.
+                history.append(dict(error=str(error)))
+                continue
             name, arguments = action["action"], action["arguments"]
             if name == "answer" and not arguments:
                 with self.index._transaction():
@@ -336,8 +342,17 @@ class Navigation:
                 "search",
                 "calculate",
             }:
-                raise ValueError("Unknown navigation action")
-            result = getattr(self, name)(**arguments)
+                history.append(dict(action=name, error="Unknown navigation action"))
+                continue
+            try:
+                result = getattr(self, name)(**arguments)
+            except (TypeError, ValueError, KeyError) as error:
+                if "Index changed" in str(error):
+                    raise
+                if "call budget" in str(error):
+                    break
+                history.append(dict(action=name, arguments=arguments, error=str(error)))
+                continue
             history.append(dict(action=name, arguments=arguments, result=result))
             if name == "calculate":
                 calculations.append(result)
@@ -350,4 +365,39 @@ class Navigation:
             )
             for source in sources:
                 evidence[source["id"]] = Hit(**source)
-        raise ValueError("Navigation planning budget exhausted")
+        # Out of steps: answer from what was found rather than failing; the
+        # same quote validation applies, and no evidence means abstention.
+        with self.index._transaction():
+            if self._version() != self.version:
+                raise ValueError("Index changed; start a new navigation session")
+            return _answer_evidence(
+                question,
+                list(evidence.values()),
+                generate=generate,
+                max_evidence_chars=max_evidence_chars,
+            )
+
+
+def _parse_plan(raw):
+    """The first JSON object in a model reply, as {action, arguments}.
+
+    Chat models wrap JSON in code fences or a sentence; the object itself must
+    still be exact. Anything else is reported back to the model as an error.
+    """
+    if not isinstance(raw, str) or len(raw) > 8000:
+        raise ValueError("Plan must be a JSON string under 8000 characters")
+    start = raw.find("{")
+    if start < 0:
+        raise ValueError("Reply with one JSON object {action, arguments}")
+    try:
+        action, _ = json.JSONDecoder().raw_decode(raw[start:])
+    except json.JSONDecodeError as error:
+        raise ValueError(f"Invalid JSON: {error.msg}") from None
+    if (
+        not isinstance(action, dict)
+        or set(action) != {"action", "arguments"}
+        or not isinstance(action["action"], str)
+        or not isinstance(action["arguments"], dict)
+    ):
+        raise ValueError("Reply with exactly {action, arguments}")
+    return action
